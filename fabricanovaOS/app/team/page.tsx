@@ -11,36 +11,41 @@ import Navbar from '../../component/Navbar';
 export default function TeamPage() {
     const teamMembers = [
         {
-            name: "Elena V.",
-            role: "Lead Architect",
+            name: "Sudipta Sarkar",
+            role: "Project Lead & Web and ML",
             icon: Code,
-            id: "ARCH_01",
-            bio: "Ex-Google AI. Building the neural backbone.",
-            tags: ["Rust", "PyTorch", "Architecture"]
+            id: "TEAMF_01",
+            // Placeholder image - Replace with actual local path e.g., "/images/sudipta.jpg"
+            image: "/Team/SudiptaSakar.jpeg",
+            bio: "Student At NiT Kolkata",
+            tags: ["React", "Stable Diffusion", "FastAPI"]
         },
         {
-            name: "Marc D.",
-            role: "Creative Director",
+            name: "Avirup Guha Biswas",
+            role: "Web & Doc",
             icon: PenTool,
-            id: "DSGN_01",
+            id: "TEAMF_02",
+            image: "/Team/Avirup.jpeg",
             bio: "Parsons graduate. Bridging trad fashion & tech.",
-            tags: ["Clo3D", "Unreal", "Art Direction"]
+            tags: ["Unreal", "Art Direction"]
         },
         {
-            name: "Sarah L.",
-            role: "ML Engineer",
+            name: "Reema Das",
+            role: "Ui/UX",
             icon: Sparkles,
-            id: "ENG_02",
+            id: "TEAMF_03",
+            image: "/Team/ReemaDas.jpeg",
             bio: "Specialist in diffusion models and fabric physics.",
-            tags: ["Diffusion", "Physics", "Python"]
+            tags: ["Designer","Planning"]
         },
         {
-            name: "James R.",
-            role: "Product Strategy",
+            name: "Swagata Lahiri",
+            role: "Testing and Doc",
             icon: User,
-            id: "PROD_01",
+            id: "TEAMF_04",
+            image: "/Team/Swagslahiri.jpeg",
             bio: "Scaling ethical AI tools for creators.",
-            tags: ["Strategy", "Ethics", "Growth"]
+            tags: ["Strategy", "Growth"]
         },
     ];
 
@@ -115,7 +120,7 @@ export default function TeamPage() {
                 </div>
             </section>
 
-            {/* --- TEAM GRID (EDITORIAL STAGGERED) --- */}
+            {/* --- TEAM GRID (WITH IMAGES) --- */}
             <section className="py-32 px-6 relative">
                 <div className="max-w-7xl mx-auto">
                     <div className="mb-20">
@@ -130,11 +135,11 @@ export default function TeamPage() {
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
                                 transition={{ duration: 0.5, delay: i * 0.1 }}
-                                // THE STAGGER: Pushing even columns down
-                                className={`group relative min-h-[480px] flex flex-col justify-between border border-stone-200 bg-white p-6 hover:bg-stone-900 hover:border-stone-900 transition-all duration-500 ${i % 2 === 1 ? 'lg:translate-y-16' : ''}`}
+                                // Card Container
+                                className={`group relative min-h-[550px] flex flex-col justify-between border border-stone-200 bg-white p-6 hover:bg-stone-900 hover:border-stone-900 transition-all duration-500 ${i % 2 === 1 ? 'lg:translate-y-16' : ''}`}
                             >
-                                {/* HEADER */}
-                                <div className="flex justify-between items-start z-10">
+                                {/* HEADER: Icon & ID */}
+                                <div className="flex justify-between items-start z-10 mb-4">
                                     <div className="w-10 h-10 border border-stone-200 rounded-full flex items-center justify-center text-stone-400 group-hover:bg-stone-800 group-hover:border-stone-700 group-hover:text-white transition-colors">
                                         <member.icon size={18} strokeWidth={1.5} />
                                     </div>
@@ -143,21 +148,28 @@ export default function TeamPage() {
                                     </span>
                                 </div>
 
-                                {/* CENTER VISUAL (Abstract Thread) */}
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none">
-                                    <div className="w-[1px] h-32 bg-gradient-to-b from-transparent via-stone-700 to-transparent"></div>
+                                {/* --- NEW: MEMBER PHOTO SECTION --- */}
+                                <div className="relative w-full aspect-[4/5] overflow-hidden rounded-lg bg-stone-100 mb-6">
+                                    {/* The Image */}
+                                    <img
+                                        src={member.image}
+                                        alt={member.name}
+                                        className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700 ease-out"
+                                    />
+                                    {/* Subtle Overlay to make text pop if needed (Optional) */}
+                                    <div className="absolute inset-0 bg-stone-900/0 group-hover:bg-stone-900/10 transition-colors duration-500" />
                                 </div>
 
                                 {/* CONTENT */}
                                 <div className="z-10 mt-auto">
-                                    <div className="mb-6 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
-                                        <h3 className="font-serif text-3xl text-stone-900 group-hover:text-white transition-colors mb-1">
+                                    <div className="mb-6">
+                                        <h3 className="font-serif text-2xl text-stone-900 group-hover:text-white transition-colors mb-1">
                                             {member.name}
                                         </h3>
-                                        <p className="text-xs font-bold uppercase tracking-widest text-stone-400 mb-4">
+                                        <p className="text-xs font-bold uppercase tracking-widest text-stone-400 mb-4 group-hover:text-stone-500 transition-colors">
                                             {member.role}
                                         </p>
-                                        <p className="text-sm text-stone-500 group-hover:text-stone-400 transition-colors leading-relaxed opacity-0 group-hover:opacity-100 duration-500 delay-100 absolute group-hover:relative">
+                                        <p className="text-sm text-stone-500 group-hover:text-stone-400 transition-colors leading-relaxed">
                                             {member.bio}
                                         </p>
                                     </div>

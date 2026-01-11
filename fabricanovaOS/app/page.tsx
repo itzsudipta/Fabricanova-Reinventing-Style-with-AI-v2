@@ -15,18 +15,15 @@ export default function Home() {
     const router = useRouter();
 
     // --- AUTH STATE MANAGEMENT ---
-    const [user, setUser] = useState<any>(null); // Added <any> to fix potential type issues
+    const [user, setUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
-    // Initialize Supabase Client
-    // FIX: Added '!' to force TypeScript to accept these are defined
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
     useEffect(() => {
-        // 1. Check active session on load
         const getUser = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             setUser(session?.user ?? null);
@@ -34,7 +31,6 @@ export default function Home() {
         };
         getUser();
 
-        // 2. Listen for changes (Login/Logout in other tabs)
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setUser(session?.user ?? null);
             setLoading(false);
@@ -43,23 +39,54 @@ export default function Home() {
         return () => subscription.unsubscribe();
     }, [supabase]);
 
-    // Handle Sign Out
     const handleSignOut = async () => {
         await supabase.auth.signOut();
         setUser(null);
         router.refresh();
     };
 
+    // --- UPDATED TEAM DATA (MATCHING TEAM PAGE) ---
     const teamMembers = [
-        { name: "Elena V.", role: "Lead Architect", icon: Code },
-        { name: "Marc D.", role: "Creative Director", icon: PenTool },
-        { name: "Sarah L.", role: "ML Engineer", icon: Sparkles },
-        { name: "James R.", role: "Product Strategy", icon: User },
+        {
+            name: "Sudipta Sarkar",
+            role: "Project Lead & Web and ML",
+            icon: Code,
+            id: "TEAMF_01",
+            image: "/Team/SudiptaSakar.jpeg",
+            bio: "Student At NiT Kolkata",
+            tags: ["React", "Diffusion", "FastAPI"]
+        },
+        {
+            name: "Avirup Guha Biswas",
+            role: "Web & Doc",
+            icon: PenTool,
+            id: "TEAMF_02",
+            image: "/Team/Avirup.jpeg",
+            bio: "Student At NiT Kolkata",
+            tags: ["Design"]
+        },
+        {
+            name: "Reema Das",
+            role: "Ui/UX",
+            icon: Sparkles,
+            id: "TEAMF_03",
+            image: "/Team/ReemaDas.jpeg",
+            bio: "Student At NiT Kolkata",
+            tags: ["UI","Planning"]
+        },
+        {
+            name: "Swagata Lahiri",
+            role: "Testing and Doc",
+            icon: User,
+            id: "TEAMF_04",
+            image: "/Team/Swagslahiri.jpeg",
+            bio: "Student At NiT Kolkata",
+            tags: ["Strategy","Growth"]
+        },
     ];
 
     return (
         <>
-            {/* Pass user prop to Navbar if your Navbar supports it */}
             <Navbar user={user} />
 
             {/* --- HERO SECTION --- */}
@@ -86,31 +113,23 @@ export default function Home() {
                             Design fashion with AI. From abstract thought to technical vector sketch in seconds.
                         </p>
 
-                        {/* --- AUTHENTICATED BUTTONS --- */}
                         {!loading && (
                             <div className="flex flex-col md:flex-row items-center justify-center gap-4">
                                 {user ? (
-                                    // STATE: LOGGED IN
                                     <>
                                         <div className="flex flex-col items-center gap-2 mb-4 md:mb-0 md:hidden">
                                             <span className="text-xs font-bold uppercase tracking-widest text-stone-400">
                                                 Welcome back, {user.email?.split('@')[0]}
                                             </span>
                                         </div>
-
                                         <Link href="/studio" className="h-14 px-8 bg-stone-900 text-white rounded-sm font-medium hover:bg-stone-800 transition-all flex items-center gap-2 shadow-lg shadow-stone-900/10">
                                             <LayoutDashboard size={16} /> Enter Studio
                                         </Link>
-
-                                        <button
-                                            onClick={handleSignOut}
-                                            className="h-14 px-8 border border-stone-300 bg-white/50 backdrop-blur-sm text-stone-900 rounded-sm font-medium hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all flex items-center gap-2"
-                                        >
+                                        <button onClick={handleSignOut} className="h-14 px-8 border border-stone-300 bg-white/50 backdrop-blur-sm text-stone-900 rounded-sm font-medium hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all flex items-center gap-2">
                                             <LogOut size={16} /> Sign Out
                                         </button>
                                     </>
                                 ) : (
-                                    // STATE: LOGGED OUT
                                     <>
                                         <Link href="/auth" className="h-14 px-8 bg-stone-900 text-white rounded-sm font-medium hover:bg-stone-800 transition-all flex items-center gap-2 shadow-lg shadow-stone-900/10">
                                             <Sparkles size={16} /> Start Designing
@@ -123,24 +142,23 @@ export default function Home() {
                             </div>
                         )}
 
-                        {/* Loading State Placeholder */}
                         {loading && (
                             <div className="h-14 w-full flex justify-center items-center">
                                 <div className="w-6 h-6 border-2 border-stone-200 border-t-stone-800 rounded-full animate-spin"></div>
                             </div>
                         )}
-
                     </motion.div>
                 </div>
             </main>
 
-            {/* --- TEAM SECTION --- */}
+            {/* --- TEAM SECTION (UPDATED) --- */}
             <section className="py-32 bg-stone-50 relative overflow-hidden" id="team">
                 <div className="absolute top-0 right-0 w-1/3 h-full border-l border-dashed border-stone-200 pointer-events-none opacity-50" />
                 <div className="absolute top-20 left-10 w-24 h-24 border border-stone-200 rounded-full opacity-40 animate-pulse" />
 
                 <div className="max-w-7xl mx-auto px-6 relative z-10">
 
+                    {/* Section Header */}
                     <div className="flex flex-col md:flex-row justify-between items-end mb-24 border-b border-stone-200 pb-8">
                         <div className="max-w-2xl">
                             <motion.span
@@ -165,7 +183,8 @@ export default function Home() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    {/* Team Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {teamMembers.map((member, i) => (
                             <motion.div
                                 key={i}
@@ -173,32 +192,38 @@ export default function Home() {
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
                                 transition={{ duration: 0.6, delay: i * 0.1 }}
-                                className={`group relative h-[420px] bg-white border border-stone-200 flex flex-col justify-between p-8 hover:bg-stone-900 transition-all duration-500 cursor-pointer ${i % 2 === 1 ? 'lg:translate-y-12' : ''}`}
+                                // Card Container (Same styling as Team Page)
+                                className={`group relative min-h-[500px] flex flex-col justify-between border border-stone-200 bg-white p-6 hover:bg-stone-900 hover:border-stone-900 transition-all duration-500 cursor-pointer ${i % 2 === 1 ? 'lg:translate-y-12' : ''}`}
                             >
-                                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-                                <div className="flex justify-between items-start">
-                                    <span className="text-[10px] font-bold uppercase tracking-widest border border-stone-200 px-2 py-1 rounded-full text-stone-400 group-hover:border-stone-700 group-hover:text-stone-300 transition-colors">
-                                        {member.role}
-                                    </span>
-                                    <div className="bg-stone-50 p-3 rounded-full text-stone-900 group-hover:bg-stone-800 group-hover:text-white transition-colors duration-500">
-                                        <member.icon size={20} strokeWidth={1.5} />
+                                {/* HEADER: Icon & ID */}
+                                <div className="flex justify-between items-start z-10 mb-4">
+                                    <div className="w-10 h-10 border border-stone-200 rounded-full flex items-center justify-center text-stone-400 group-hover:bg-stone-800 group-hover:border-stone-700 group-hover:text-white transition-colors">
+                                        <member.icon size={18} strokeWidth={1.5} />
                                     </div>
+                                    <span className="font-mono text-[10px] text-stone-400 group-hover:text-stone-500 transition-colors">
+                                        {member.id}
+                                    </span>
                                 </div>
 
-                                <div className="absolute top-1/2 left-0 w-full px-8 opacity-20 group-hover:opacity-40 transition-opacity">
-                                    <svg width="100%" height="40" className="stroke-stone-900 group-hover:stroke-stone-500">
-                                        <path d="M0 20 Q 50 0, 100 20 T 200 20" fill="none" strokeWidth="1" />
-                                    </svg>
+                                {/* MEMBER PHOTO */}
+                                <div className="relative w-full aspect-[4/5] overflow-hidden rounded-lg bg-stone-100 mb-6">
+                                    <img
+                                        src={member.image}
+                                        alt={member.name}
+                                        className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700 ease-out"
+                                    />
+                                    <div className="absolute inset-0 bg-stone-900/0 group-hover:bg-stone-900/10 transition-colors duration-500" />
                                 </div>
 
-                                <div className="relative z-10">
-                                    <h3 className="font-serif text-3xl text-stone-900 group-hover:text-white transition-colors duration-300 mb-2">
-                                        {member.name}
-                                    </h3>
-                                    <div className="flex items-center justify-between overflow-hidden h-0 group-hover:h-8 transition-all duration-500">
-                                        <span className="text-xs text-stone-500 font-mono">Based in Paris, FR</span>
-                                        <ArrowRight size={14} className="text-white -translate-x-4 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500 delay-100" />
+                                {/* CONTENT */}
+                                <div className="z-10 mt-auto">
+                                    <div>
+                                        <h3 className="font-serif text-2xl text-stone-900 group-hover:text-white transition-colors mb-1">
+                                            {member.name}
+                                        </h3>
+                                        <p className="text-xs font-bold uppercase tracking-widest text-stone-400 group-hover:text-stone-500 transition-colors">
+                                            {member.role}
+                                        </p>
                                     </div>
                                 </div>
                             </motion.div>
@@ -216,7 +241,6 @@ export default function Home() {
             {/* --- FOOTER --- */}
             <footer className="bg-stone-950 py-20 border-t border-stone-900 text-stone-400 font-sans text-sm">
                 <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-12 mb-16">
-
                     <div className="col-span-1">
                         <div className="flex items-center gap-2 mb-6">
                             <div className="w-6 h-6 bg-stone-50 text-stone-950 flex items-center justify-center rounded-sm">
@@ -233,7 +257,6 @@ export default function Home() {
                             <Linkedin size={18} className="hover:text-stone-50 cursor-pointer transition-colors" />
                         </div>
                     </div>
-
                     <div>
                         <h4 className="text-stone-50 font-bold uppercase tracking-widest text-xs mb-6">Product</h4>
                         <ul className="space-y-4">
@@ -243,7 +266,6 @@ export default function Home() {
                             <li><Link href="#" className="hover:text-stone-50 transition-colors">Showcase</Link></li>
                         </ul>
                     </div>
-
                     <div>
                         <h4 className="text-stone-50 font-bold uppercase tracking-widest text-xs mb-6">Company</h4>
                         <ul className="space-y-4">
@@ -253,7 +275,6 @@ export default function Home() {
                             <li><Link href="#" className="hover:text-stone-50 transition-colors">Contact</Link></li>
                         </ul>
                     </div>
-
                     <div>
                         <h4 className="text-stone-50 font-bold uppercase tracking-widest text-xs mb-6">Updates</h4>
                         <p className="mb-4 opacity-80">Join the waiting list for Fabricanova Enterprise.</p>
@@ -269,7 +290,6 @@ export default function Home() {
                         </div>
                     </div>
                 </div>
-
                 <div className="max-w-7xl mx-auto px-6 pt-8 border-t border-stone-900 flex flex-col md:flex-row justify-between items-center opacity-60">
                     <p>© 2026 Fabricanova Inc. All rights reserved.</p>
                     <div className="flex gap-6 mt-4 md:mt-0">

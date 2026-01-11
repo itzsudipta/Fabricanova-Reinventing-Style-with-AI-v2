@@ -5,7 +5,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfair' });
 
 export const metadata = {
-    title: 'CoutureOS | AI Fashion Design Platform',
+    title: 'Fabricanova | Reinventing Style with Ai',
     description: 'The Neural Loom for Modern Fashion Design.',
 };
 
