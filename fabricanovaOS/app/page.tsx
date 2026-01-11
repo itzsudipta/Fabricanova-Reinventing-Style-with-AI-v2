@@ -1,13 +1,54 @@
 'use client';
+import { useState, useEffect } from 'react'; // 1. Import Hooks
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // Needed for refresh after signout
+import { createBrowserClient } from '@supabase/ssr'; // 2. Import Supabase
 import {
     Sparkles, Code, PenTool, User,
-    Github, Linkedin, Twitter, ArrowRight
+    Github, Linkedin, Twitter, ArrowRight,
+    LogOut, LayoutDashboard
 } from 'lucide-react';
 import Navbar from '../component/Navbar';
 
 export default function Home() {
+    const router = useRouter();
+
+    // --- AUTH STATE MANAGEMENT ---
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    // Initialize Supabase Client
+    const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
+
+    useEffect(() => {
+        // 1. Check active session on load
+        const getUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            setUser(session?.user ?? null);
+            setLoading(false);
+        };
+        getUser();
+
+        // 2. Listen for changes (Login/Logout in other tabs)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user ?? null);
+            setLoading(false);
+        });
+
+        return () => subscription.unsubscribe();
+    }, [supabase]);
+
+    // Handle Sign Out
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+        setUser(null);
+        router.refresh();
+    };
+
     const teamMembers = [
         { name: "Elena V.", role: "Lead Architect", icon: Code },
         { name: "Marc D.", role: "Creative Director", icon: PenTool },
@@ -17,7 +58,8 @@ export default function Home() {
 
     return (
         <>
-            <Navbar />
+            {/* Pass user prop to Navbar if your Navbar supports it */}
+            <Navbar user={user} />
 
             {/* --- HERO SECTION --- */}
             <main className="relative min-h-screen flex items-center justify-center bg-stone-50 overflow-hidden pt-20">
@@ -43,48 +85,141 @@ export default function Home() {
                             Design fashion with AI. From abstract thought to technical vector sketch in seconds.
                         </p>
 
-                        <div className="flex flex-col md:flex-row items-center justify-center gap-4">
-                            <Link href="/studio" className="h-14 px-8 bg-stone-900 text-white rounded-sm font-medium hover:bg-stone-800 transition-all flex items-center gap-2">
-                                <Sparkles size={16} /> Open Studio
-                            </Link>
-                            <button className="h-14 px-8 border border-stone-300 bg-white/50 backdrop-blur-sm text-stone-900 rounded-sm font-medium hover:bg-white transition-all">
-                                Watch Demo
-                            </button>
-                        </div>
+                        {/* --- AUTHENTICATED BUTTONS --- */}
+                        {!loading && (
+                            <div className="flex flex-col md:flex-row items-center justify-center gap-4">
+                                {user ? (
+                                    // STATE: LOGGED IN
+                                    <>
+                                        <div className="flex flex-col items-center gap-2 mb-4 md:mb-0 md:hidden">
+                                            <span className="text-xs font-bold uppercase tracking-widest text-stone-400">
+                                                Welcome back, {user.email?.split('@')[0]}
+                                            </span>
+                                        </div>
+
+                                        <Link href="/studio" className="h-14 px-8 bg-stone-900 text-white rounded-sm font-medium hover:bg-stone-800 transition-all flex items-center gap-2 shadow-lg shadow-stone-900/10">
+                                            <LayoutDashboard size={16} /> Enter Studio
+                                        </Link>
+
+                                        <button
+                                            onClick={handleSignOut}
+                                            className="h-14 px-8 border border-stone-300 bg-white/50 backdrop-blur-sm text-stone-900 rounded-sm font-medium hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all flex items-center gap-2"
+                                        >
+                                            <LogOut size={16} /> Sign Out
+                                        </button>
+                                    </>
+                                ) : (
+                                    // STATE: LOGGED OUT
+                                    <>
+                                        <Link href="/auth" className="h-14 px-8 bg-stone-900 text-white rounded-sm font-medium hover:bg-stone-800 transition-all flex items-center gap-2 shadow-lg shadow-stone-900/10">
+                                            <Sparkles size={16} /> Start Designing
+                                        </Link>
+                                        <button className="h-14 px-8 border border-stone-300 bg-white/50 backdrop-blur-sm text-stone-900 rounded-sm font-medium hover:bg-white transition-all">
+                                            Watch Demo
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Loading State Placeholder to prevent layout shift */}
+                        {loading && (
+                            <div className="h-14 w-full flex justify-center items-center">
+                                <div className="w-6 h-6 border-2 border-stone-200 border-t-stone-800 rounded-full animate-spin"></div>
+                            </div>
+                        )}
+
                     </motion.div>
                 </div>
             </main>
 
-            {/* --- TEAM SECTION --- */}
-            <section className="py-32 bg-stone-50 relative overflow-hidden">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-stone-200/50 blur-[100px] rounded-full pointer-events-none" />
+            {/* --- TEAM SECTION (REDESIGNED) --- */}
+            <section className="py-32 bg-stone-50 relative overflow-hidden" id="team">
+                {/* Background Decorative Elements */}
+                <div className="absolute top-0 right-0 w-1/3 h-full border-l border-dashed border-stone-200 pointer-events-none opacity-50" />
+                <div className="absolute top-20 left-10 w-24 h-24 border border-stone-200 rounded-full opacity-40 animate-pulse" />
+
                 <div className="max-w-7xl mx-auto px-6 relative z-10">
-                    <div className="text-center mb-20">
-                        <span className="text-xs font-bold uppercase tracking-[0.2em] text-stone-400 mb-4 block">The Collective</span>
-                        <h2 className="font-serif text-5xl text-stone-900 mb-6">Crafting Intelligence.</h2>
+
+                    {/* Section Header */}
+                    <div className="flex flex-col md:flex-row justify-between items-end mb-24 border-b border-stone-200 pb-8">
+                        <div className="max-w-2xl">
+                            <motion.span
+                                initial={{ opacity: 0, x: -20 }}
+                                whileInView={{ opacity: 1, x: 0 }}
+                                viewport={{ once: true }}
+                                className="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.25em] text-stone-400 mb-4"
+                            >
+                                <span className="w-8 h-[1px] bg-stone-400"></span>
+                                02 — The Collective
+                            </motion.span>
+                            <h2 className="font-serif text-5xl md:text-6xl text-stone-900 leading-tight">
+                                Architects of the <br />
+                                <span className="italic text-stone-400">Digital Thread.</span>
+                            </h2>
+                        </div>
+                        <div className="hidden md:block pb-2">
+                            <Link href="/team" className="group flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-stone-900 hover:text-stone-500 transition-colors">
+                                Meet Everyone
+                                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                            </Link>
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    {/* The Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                         {teamMembers.map((member, i) => (
-                            <div key={i} className="bg-white rounded-[2rem] p-6 border border-stone-100 shadow-sm text-center group hover:-translate-y-2 transition-transform duration-500">
-                                <div className="flex justify-center mb-4 text-stone-400 group-hover:text-stone-900 transition-colors">
-                                    <member.icon size={48} strokeWidth={1} />
+                            <motion.div
+                                key={i}
+                                initial={{ opacity: 0, y: 50 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ duration: 0.6, delay: i * 0.1 }}
+                                className={`group relative h-[420px] bg-white border border-stone-200 flex flex-col justify-between p-8 hover:bg-stone-900 transition-all duration-500 cursor-pointer ${i % 2 === 1 ? 'lg:translate-y-12' : ''}`}
+                            >
+                                {/* Hover Overlay Gradient */}
+                                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+
+                                {/* Top: Role & Icon */}
+                                <div className="flex justify-between items-start">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest border border-stone-200 px-2 py-1 rounded-full text-stone-400 group-hover:border-stone-700 group-hover:text-stone-300 transition-colors">
+                                        {member.role}
+                                    </span>
+                                    <div className="bg-stone-50 p-3 rounded-full text-stone-900 group-hover:bg-stone-800 group-hover:text-white transition-colors duration-500">
+                                        <member.icon size={20} strokeWidth={1.5} />
+                                    </div>
                                 </div>
-                                <h3 className="font-serif text-xl font-bold text-stone-900">{member.name}</h3>
-                                <p className="text-xs uppercase text-stone-400 tracking-wider mt-1">{member.role}</p>
-                            </div>
+
+                                {/* Middle: Abstract Visual */}
+                                <div className="absolute top-1/2 left-0 w-full px-8 opacity-20 group-hover:opacity-40 transition-opacity">
+                                    <svg width="100%" height="40" className="stroke-stone-900 group-hover:stroke-stone-500">
+                                        <path d="M0 20 Q 50 0, 100 20 T 200 20" fill="none" strokeWidth="1" />
+                                    </svg>
+                                </div>
+
+                                {/* Bottom: Name & Action */}
+                                <div className="relative z-10">
+                                    <h3 className="font-serif text-3xl text-stone-900 group-hover:text-white transition-colors duration-300 mb-2">
+                                        {member.name}
+                                    </h3>
+                                    <div className="flex items-center justify-between overflow-hidden h-0 group-hover:h-8 transition-all duration-500">
+                                        <span className="text-xs text-stone-500 font-mono">Based in Paris, FR</span>
+                                        <ArrowRight size={14} className="text-white -translate-x-4 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-500 delay-100" />
+                                    </div>
+                                </div>
+                            </motion.div>
                         ))}
                     </div>
 
-                    <div className="mt-16 text-center">
-                        <Link href="/team" className="inline-flex items-center gap-2 bg-stone-900 text-white px-8 py-3 rounded-full text-sm font-bold tracking-wide hover:bg-stone-800 transition-all">
-                            View Full Team <ArrowRight size={14} />
+                    <div className="mt-20 md:hidden text-center">
+                        <Link href="/team" className="inline-block border-b border-stone-900 pb-1 text-sm font-bold uppercase tracking-widest">
+                            View Full Team
                         </Link>
                     </div>
                 </div>
             </section>
 
-            {/* --- FOOTER (HERE IT IS!) --- */}
+            {/* --- FOOTER --- */}
             <footer className="bg-stone-950 py-20 border-t border-stone-900 text-stone-400 font-sans text-sm">
                 <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-4 gap-12 mb-16">
 

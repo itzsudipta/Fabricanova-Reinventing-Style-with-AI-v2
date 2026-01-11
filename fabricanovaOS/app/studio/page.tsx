@@ -1,52 +1,98 @@
 'use client';
-import { useState, useRef } from 'react';
+
+// --- IMPORTS ---
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
 import {
   Undo, Redo, Download, Sparkles, Layers,
   Sliders, ChevronRight, Settings,
-  Wifi, CheckCircle2, AlertCircle, Upload
+  Wifi, CheckCircle2, AlertCircle, Upload,
+  LogOut, User, Shield, ChevronDown
 } from 'lucide-react';
+
+// --- CUSTOM COMPONENTS ---
 import Toolbar from '@/component/studio/Toolbar';
 import CanvasBoard from '@/component/studio/CanvasBoard';
 
 export default function StudioPage() {
-  // --- STATE ---
+  const router = useRouter();
+
+  // --- 1. SUPABASE & AUTH STATE ---
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [loadingUser, setLoadingUser] = useState(true);
+
+  // Menu State
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // --- 2. CANVAS & TOOL STATE ---
   const [activeTool, setActiveTool] = useState('pen');
   const [brushSize, setBrushSize] = useState(3);
   const [opacity, setOpacity] = useState(100);
   const [importedImage, setImportedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // --- 3. AI & SERVER STATE ---
   const [prompt, setPrompt] = useState('');
   const [sketchData, setSketchData] = useState<string | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const [serverUrl, setServerUrl] = useState('');
   const [showSettings, setShowSettings] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
-  // --- HELPER: ROBUST DOWNLOAD FUNCTION ---
-  const downloadBase64 = (base64Data: string, fileName: string) => {
-    console.log(`📥 Attempting to download: ${fileName}`);
-    try {
-      const link = document.createElement('a');
-      link.href = base64Data;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      console.log("✅ Download triggered successfully.");
-    } catch (e) {
-      console.error("❌ Download failed:", e);
-      alert("Download failed. Please try right-clicking the image and selecting 'Save Image As'.");
+  // --- EFFECT: INITIALIZE ---
+  useEffect(() => {
+    const initData = async () => {
+      // Check Session
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push('/auth');
+        return;
+      }
+      setUser(user);
+
+      // Fetch Profile Details
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      setProfile(profileData);
+      setLoadingUser(false);
+    };
+
+    initData();
+
+    // Click Outside Handler for Menu
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
     }
-  };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+
+  }, [supabase, router]);
 
   // --- HANDLERS ---
 
-  // 1. Upload Image
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push('/');
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -58,20 +104,28 @@ export default function StudioPage() {
     }
   };
 
-  // 2. Export Canvas Button Handler
+  const downloadBase64 = (base64Data: string, fileName: string) => {
+    try {
+      const link = document.createElement('a');
+      link.href = base64Data;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      alert("Download failed.");
+    }
+  };
+
   const handleExportCanvas = () => {
-    console.log("🖱️ Export Canvas Clicked");
     if (!sketchData) {
-      console.warn("⚠️ SketchData is null. Canvas hasn't initialized yet.");
-      alert("Canvas is initializing... please wait a second or draw something first.");
+      alert("Please draw something first.");
       return;
     }
     downloadBase64(sketchData, 'fabricanova-sketch.png');
   };
 
-  // 3. Download AI Button Handler
   const handleDownloadAI = () => {
-    console.log("🖱️ Download AI Clicked");
     if (!generatedImage) {
       alert("No AI image generated yet!");
       return;
@@ -79,13 +133,12 @@ export default function StudioPage() {
     downloadBase64(generatedImage, 'fabricanova-ai-render.png');
   };
 
-  // 4. Generate AI Design Handler
   const handleGenerate = async () => {
     if (!serverUrl) { alert("⚠️ Please paste your Colab Ngrok URL!"); setShowSettings(true); return; }
     if (!sketchData) { alert("⚠️ Please draw something or upload a sketch!"); return; }
     if (!prompt) { alert("⚠️ Please enter a text prompt!"); return; }
 
-    setIsLoading(true);
+    setIsGenerating(true);
     setConnectionStatus('idle');
 
     let finalUrl = serverUrl.trim();
@@ -116,63 +169,123 @@ export default function StudioPage() {
       setConnectionStatus('error');
       alert("❌ Network Error: Could not connect to Colab.");
     } finally {
-      setIsLoading(false);
+      setIsGenerating(false);
     }
   };
 
-  return (
-    <div className="h-screen flex flex-col bg-stone-100 overflow-hidden font-sans text-stone-900">
+  if (loadingUser) return (
+    <div className="h-screen w-full flex items-center justify-center bg-stone-50">
+      <div className="w-8 h-8 border-2 border-stone-200 border-t-stone-900 rounded-full animate-spin"></div>
+    </div>
+  );
 
-      {/* Header */}
-      <header className="h-14 bg-white border-b border-stone-200 flex items-center justify-between px-4 z-20 shrink-0">
+  return (
+    <div className="h-screen flex flex-col bg-stone-50 overflow-hidden font-sans text-stone-900">
+
+      {/* =========================================================================
+          TOP HEADER (BRAND, TOOLS, & PROFILE MENU)
+         ========================================================================= */}
+      <header className="h-16 bg-white border-b border-stone-200 flex items-center justify-between px-6 z-50 shrink-0">
+
+        {/* LEFT: Logo & Breadcrumbs */}
         <div className="flex items-center gap-4">
-          <Link href="/" className="hover:bg-stone-100 p-2 rounded-md">
-            <div className="font-serif font-bold text-lg">Fabricanova</div>
+          <Link href="/" className="flex items-center gap-2 hover:opacity-70 transition-opacity">
+            <div className="w-8 h-8 bg-stone-950 text-white flex items-center justify-center rounded-md font-serif font-bold italic">F</div>
+            <span className="font-serif text-xl font-bold text-stone-900 hidden md:block">Fabricanova</span>
           </Link>
-          <div className="h-6 w-px bg-stone-200" />
-          <div className="text-sm font-medium text-stone-500">SS26 Collection / Draft 04</div>
+          <div className="h-8 w-px bg-stone-200"></div>
+          <div className="flex flex-col">
+            <span className="text-xs font-bold uppercase tracking-widest text-stone-400">Project</span>
+            <span className="text-sm font-medium text-stone-900">SS26 / Draft 04</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold border ${connectionStatus === 'success' ? 'bg-green-50 border-green-200 text-green-700' :
-            connectionStatus === 'error' ? 'bg-red-50 border-red-200 text-red-700' :
-              'bg-stone-50 border-stone-200 text-stone-500'
-            }`}>
+
+        {/* RIGHT: Tools & Profile */}
+        <div className="flex items-center gap-3">
+
+          {/* Status & Basic Tools */}
+          <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold border ${connectionStatus === 'success' ? 'bg-green-50 border-green-200 text-green-700' : connectionStatus === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-stone-50 border-stone-200 text-stone-500'}`}>
             <Wifi size={12} />
             {connectionStatus === 'success' ? 'AI Online' : connectionStatus === 'error' ? 'Offline' : 'Ready'}
           </div>
-          <button className="p-2 hover:bg-stone-50 rounded text-stone-500"><Undo size={18} /></button>
-          <button className="p-2 hover:bg-stone-50 rounded text-stone-500"><Redo size={18} /></button>
 
-          {/* EXPORT CANVAS BUTTON */}
-          <button
-            onClick={handleExportCanvas}
-            className="ml-4 bg-stone-900 text-white px-4 py-1.5 rounded text-sm font-medium hover:bg-stone-800 flex items-center gap-2 transition-colors cursor-pointer"
-          >
-            Export Canvas <Download size={14} />
+          <div className="h-6 w-px bg-stone-200 mx-2 hidden md:block"></div>
+
+          <button className="p-2 hover:bg-stone-100 rounded text-stone-500"><Undo size={18} /></button>
+          <button className="p-2 hover:bg-stone-100 rounded text-stone-500"><Redo size={18} /></button>
+
+          <button onClick={handleExportCanvas} className="bg-stone-100 text-stone-900 px-4 py-2 rounded text-sm font-medium hover:bg-stone-200 flex items-center gap-2 transition-colors">
+            Export <Download size={14} />
           </button>
+
+          <div className="h-6 w-px bg-stone-200 mx-2"></div>
+
+          {/* --- PROFILE DROPDOWN --- */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="flex items-center gap-2 p-1 pl-2 rounded-full border border-stone-200 hover:border-stone-300 hover:bg-stone-50 transition-all"
+            >
+              <span className="text-xs font-bold text-stone-600 hidden sm:block">
+                {profile?.full_name?.split(' ')[0] || "Designer"}
+              </span>
+              <div className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center overflow-hidden border border-stone-300">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="User" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="font-serif font-bold text-stone-500">{profile?.full_name?.[0] || user?.email?.[0]?.toUpperCase()}</span>
+                )}
+              </div>
+              <ChevronDown size={14} className="text-stone-400 mr-1" />
+            </button>
+
+            {/* Dropdown Menu */}
+            {isMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
+                <div className="p-4 border-b border-stone-100 bg-stone-50/50">
+                  <p className="text-sm font-bold text-stone-900 truncate">{profile?.full_name || user?.email}</p>
+                  <p className="text-xs text-stone-500 truncate">{user?.email}</p>
+                </div>
+                <div className="p-1">
+                  <Link href="/profile" className="flex items-center gap-3 px-3 py-2.5 text-sm text-stone-600 hover:text-stone-900 hover:bg-stone-50 rounded-lg transition-colors">
+                    <User size={16} /> View Profile
+                  </Link>
+                  {profile?.role === 'super_admin' && (
+                    <Link href="/admin" className="flex items-center gap-3 px-3 py-2.5 text-sm text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
+                      <Shield size={16} /> Admin Console
+                    </Link>
+                  )}
+                  <div className="h-px bg-stone-100 my-1"></div>
+                  <button onClick={handleSignOut} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left">
+                    <LogOut size={16} /> Sign Out
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
         </div>
       </header>
 
+
+      {/* =========================================================================
+          MAIN WORKSPACE
+         ========================================================================= */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel */}
+
+        {/* 1. INPUT PANEL (LEFT) */}
         <aside className="w-80 bg-white border-r border-stone-200 flex flex-col z-10 p-5 overflow-y-auto">
-          {/* Settings */}
+
+          {/* Server Config */}
           <div className="mb-6 bg-stone-50 border border-stone-200 rounded-lg p-3">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="flex items-center justify-between w-full text-xs font-bold uppercase tracking-wider text-stone-500 mb-2 hover:text-stone-800"
-            >
+            <button onClick={() => setShowSettings(!showSettings)} className="flex items-center justify-between w-full text-xs font-bold uppercase tracking-wider text-stone-500 mb-2 hover:text-stone-800">
               <span className="flex items-center gap-2"><Settings size={12} /> AI Server Config</span>
               <ChevronRight size={12} className={`transition-transform ${showSettings ? 'rotate-90' : ''}`} />
             </button>
             {showSettings && (
-              <div className="animate-fade-in-up">
+              <div className="animate-in fade-in slide-in-from-top-1 duration-200">
                 <p className="text-[10px] text-stone-400 mb-2 leading-snug">Paste <strong>Ngrok URL</strong> from Colab:</p>
-                <input
-                  type="text" placeholder="https://xxxx.ngrok-free.app"
-                  value={serverUrl} onChange={(e) => setServerUrl(e.target.value)}
-                  className="w-full text-xs p-2 border border-stone-300 rounded mb-1 focus:ring-1 focus:ring-stone-900 outline-none bg-white"
-                />
+                <input type="text" placeholder="https://xxxx.ngrok-free.app" value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} className="w-full text-xs p-2 border border-stone-300 rounded mb-1 focus:ring-1 focus:ring-stone-900 outline-none bg-white" />
                 <div className="flex items-center gap-1 text-[10px] text-stone-400">
                   {serverUrl.includes('ngrok') ? <CheckCircle2 size={10} className="text-green-500" /> : <AlertCircle size={10} />}
                   {serverUrl.includes('ngrok') ? 'Valid format' : 'Waiting for URL...'}
@@ -181,55 +294,39 @@ export default function StudioPage() {
             )}
           </div>
 
-          {/* Import Source */}
+          {/* Upload */}
           <div className="mb-6 border-b border-stone-100 pb-6">
-            <h3 className="text-xs font-bold tracking-wider text-stone-400 uppercase mb-3 flex items-center gap-2">Input Source</h3>
+            <h3 className="text-xs font-bold tracking-wider text-stone-400 uppercase mb-3 flex items-center gap-2">Reference</h3>
             <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleImageUpload} />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full py-2 bg-stone-100 border border-stone-200 text-stone-600 rounded text-xs font-bold uppercase tracking-wider hover:bg-stone-200 hover:border-stone-300 transition-all flex items-center justify-center gap-2"
-            >
-              <Upload size={14} /> Import Sketch / Photo
+            <button onClick={() => fileInputRef.current?.click()} className="w-full py-2 bg-stone-100 border border-stone-200 text-stone-600 rounded text-xs font-bold uppercase tracking-wider hover:bg-stone-200 transition-all flex items-center justify-center gap-2">
+              <Upload size={14} /> Import Sketch
             </button>
           </div>
 
           {/* Prompt */}
           <div className="mb-6">
             <h3 className="text-xs font-bold tracking-wider text-stone-400 uppercase mb-3 flex items-center gap-2"><Sparkles size={12} /> Design Prompt</h3>
-            <textarea
-              className="w-full h-32 p-3 bg-stone-50 border border-stone-200 rounded text-sm focus:ring-1 focus:ring-stone-900 outline-none resize-none transition-all placeholder:text-stone-400"
-              placeholder="E.g. A futuristic oversized bomber jacket..."
-              value={prompt} onChange={(e) => setPrompt(e.target.value)}
-            />
-            <button
-              onClick={handleGenerate}
-              disabled={isLoading}
-              className={`w-full mt-4 text-white py-2.5 rounded text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 transition-all ${isLoading ? 'bg-stone-400 cursor-not-allowed' : 'bg-stone-900 hover:bg-stone-800'}`}
-            >
-              {isLoading ? <span className="flex items-center gap-2">Generating... <Sparkles className="animate-spin" size={14} /></span> : <>Generate Design <ChevronRight size={14} /></>}
+            <textarea className="w-full h-32 p-3 bg-stone-50 border border-stone-200 rounded text-sm focus:ring-1 focus:ring-stone-900 outline-none resize-none transition-all placeholder:text-stone-400" placeholder="E.g. A futuristic oversized bomber jacket..." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+            <button onClick={handleGenerate} disabled={isGenerating} className={`w-full mt-4 text-white py-2.5 rounded text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 transition-all ${isGenerating ? 'bg-stone-400 cursor-not-allowed' : 'bg-stone-900 hover:bg-stone-800'}`}>
+              {isGenerating ? <span className="flex items-center gap-2">Generating... <Sparkles className="animate-spin" size={14} /></span> : <>Generate Design <ChevronRight size={14} /></>}
             </button>
           </div>
 
-          {/* AI Output (With Download Button) */}
+          {/* AI Result */}
           {generatedImage && (
-            <div className="pt-6 border-t border-stone-100 animate-fade-in-up">
+            <div className="pt-6 border-t border-stone-100 animate-in fade-in slide-in-from-bottom-2">
               <h3 className="text-xs font-bold tracking-wider text-stone-400 uppercase mb-3">AI Output</h3>
               <div className="relative aspect-square border border-stone-200 rounded-lg overflow-hidden shadow-sm">
                 <Image src={generatedImage} fill alt="AI Result" className="object-cover" />
               </div>
-
-              {/* DOWNLOAD AI BUTTON */}
-              <button
-                onClick={handleDownloadAI}
-                className="w-full mt-2 text-xs font-medium text-stone-500 hover:text-stone-900 border border-stone-200 hover:border-stone-900 rounded py-2 transition-colors cursor-pointer"
-              >
+              <button onClick={handleDownloadAI} className="w-full mt-2 text-xs font-medium text-stone-500 hover:text-stone-900 border border-stone-200 hover:border-stone-900 rounded py-2 transition-colors">
                 Download AI Image
               </button>
             </div>
           )}
         </aside>
 
-        {/* Center Canvas */}
+        {/* 2. CENTER CANVAS */}
         <main className="flex-1 bg-stone-100 relative overflow-hidden flex items-center justify-center">
           <Toolbar activeTool={activeTool} setActiveTool={setActiveTool} />
           <div className="relative group overflow-hidden">
@@ -244,7 +341,7 @@ export default function StudioPage() {
           </div>
         </main>
 
-        {/* Right Panel */}
+        {/* 3. PROPERTIES PANEL (RIGHT) */}
         <aside className="w-72 bg-white border-l border-stone-200 z-10 flex flex-col">
           <div className="flex-1 p-5 border-b border-stone-200 overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
@@ -252,47 +349,30 @@ export default function StudioPage() {
               <button className="text-xs text-stone-500 hover:text-stone-900 font-medium">+ New</button>
             </div>
             <div className="space-y-2">
-              <div className="p-3 rounded-lg bg-stone-100 border border-stone-200 flex items-center justify-between group cursor-pointer shadow-sm">
+              <div className="p-3 rounded-lg bg-stone-100 border border-stone-200 flex items-center justify-between shadow-sm cursor-pointer border-l-4 border-l-stone-900">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-white border border-stone-300 rounded flex items-center justify-center"><span className="text-[10px] font-bold">V</span></div>
-                  <div className="text-sm font-medium text-stone-900">Active Layer</div>
+                  <div className="w-8 h-8 bg-white border border-stone-300 rounded flex items-center justify-center"><span className="text-[10px] font-bold">1</span></div>
+                  <div className="text-sm font-medium text-stone-900">Sketch Layer</div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* TOOL PROPERTIES (UPDATED SLIDERS) */}
           <div className="h-1/2 p-5 bg-stone-50/50">
             <h3 className="text-xs font-bold tracking-wider text-stone-400 uppercase mb-6 flex items-center gap-2"><Sliders size={12} /> Tool Properties</h3>
             <div className="space-y-6">
-              {/* Brush Size Slider (Max 50) */}
               <div>
                 <div className="flex justify-between text-xs font-medium text-stone-600 mb-2"><span>Stroke Weight</span><span>{brushSize}px</span></div>
-                <input
-                  type="range"
-                  min="1"
-                  max="50" // Updated to 50
-                  value={brushSize}
-                  onChange={(e) => setBrushSize(parseInt(e.target.value))}
-                  className="w-full accent-stone-900 h-1 bg-stone-200 rounded-lg appearance-none cursor-pointer"
-                />
+                <input type="range" min="1" max="50" value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} className="w-full accent-stone-900 h-1 bg-stone-200 rounded-lg appearance-none cursor-pointer" />
               </div>
-
-              {/* Opacity Slider (Min 1) */}
               <div>
                 <div className="flex justify-between text-xs font-medium text-stone-600 mb-2"><span>Opacity</span><span>{opacity}%</span></div>
-                <input
-                  type="range"
-                  min="1" // Updated to 1
-                  max="100"
-                  value={opacity}
-                  onChange={(e) => setOpacity(parseInt(e.target.value))}
-                  className="w-full accent-stone-900 h-1 bg-stone-200 rounded-lg appearance-none cursor-pointer"
-                />
+                <input type="range" min="1" max="100" value={opacity} onChange={(e) => setOpacity(parseInt(e.target.value))} className="w-full accent-stone-900 h-1 bg-stone-200 rounded-lg appearance-none cursor-pointer" />
               </div>
             </div>
           </div>
         </aside>
+
       </div>
     </div>
   );
