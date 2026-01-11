@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --font-serif: var(--font-playfair);
+    --font-sans: var(--font-inter);
+}
+
+@layer base {
+    body {
+        @apply bg-stone-50 text-stone-900 antialiased;
+        font-family: var(--font-sans), sans-serif;
+    }
+}
+
+@layer utilities {
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        @apply bg-stone-300 rounded-full;
+    }
+
+    /* Technical Grid for Canvas */
+    .bg-grid-pattern {
+        background-size: 20px 20px;
+        background-image: radial-gradient(#a8a29e 1px, transparent 1px);
+    }
+}

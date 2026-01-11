@@ -1,0 +1,124 @@
+############################
+# Python
+############################
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+ENV/
+env/
+
+############################
+# Jupyter / ML
+############################
+.ipynb_checkpoints/
+*.ipynb~
+*.h5
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.npz
+*.npy
+*.log
+
+############################
+# AI / Model Outputs
+############################
+models/
+checkpoints/
+weights/
+generated/
+outputs/
+results/
+datasets/
+data/raw/
+data/processed/
+
+############################
+# Node / React / Frontend
+############################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+dist/
+build/
+
+############################
+# Environment / Secrets
+############################
+.env
+.env.*
+*.key
+*.pem
+*.crt
+
+############################
+# OS / Editor
+############################
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+*.tmp
+
+############################
+# Logs
+############################
+logs/
+*.log
+
+############################
+# Cache / Temporary
+############################
+.cache/
+tmp/
+temp/
+
+############################
+# System
+############################
+*.lock
+*.pid
+
+############################
+# Ignore everything inside
+# but keep folder structure
+############################
+models/*
+outputs/*
+generated/*
+!models/.gitkeep
+!outputs/.gitkeep
+!generated/.gitkeep
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# next.js build output
+/.next/
+/out/
+
+# local env files
+.env*.local
+.env
+
+# debug logs
+npm-debug.log*
+yarn-debug.log*
