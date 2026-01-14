@@ -111,22 +111,22 @@ Visit [http://localhost:3000](http://localhost:3000) to access the app.
 <table>
   <tr>
     <td align="center">
-      <img src="https://placehold.co/100x100?text=Photo" width="80"/><br/>
+      <img src="./fabricanovaOS/public/Team/SudiptaSakar.jpeg" width="80"/><br/>
       <b>Sudipta Sarkar</b><br/>
       Project Lead / Web & ML
     </td>
     <td align="center">
-      <img src="https://placehold.co/100x100?text=Photo" width="80"/><br/>
+      <img src="./fabricanovaOS/public/Team/Avirup.jpeg" width="80"/><br/>
       <b>Avirup Guha Biswas</b><br/>
       Web Assist /Focus
     </td>
     <td align="center">
-      <img src="https://placehold.co/100x100?text=Photo" width="80"/><br/>
+      <img src="./fabricanovaOS/public/Team/ReemaDas.jpeg" width="80"/><br/>
       <b>Reema Das</b><br/>
       Designer/UI&UX
     </td>
     <td align="center">
-      <img src="https://placehold.co/100x100?text=Photo" width="80"/><br/>
+      <img src="./fabricanovaOS/public/Team/Swagslahiri.jpeg" width="80"/><br/>
       <b>Swagata Lahiri</b><br/>
       Designer and Tester/UI
     </td>
