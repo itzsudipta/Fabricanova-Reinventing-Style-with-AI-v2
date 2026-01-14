@@ -3,243 +3,206 @@
 // --- IMPORTS ---
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
-import {
-  Undo, Redo, Download, Sparkles, Layers,
-  Sliders, ChevronRight, Settings,
-  Wifi, CheckCircle2, AlertCircle, Upload,
-  LogOut, User, Shield, ChevronDown
-} from 'lucide-react';
+import { Settings, Wifi, LogOut, User, Shield } from 'lucide-react'; // <--- Added User, Shield
 
-// --- CUSTOM COMPONENTS ---
+// --- COMPONENTS ---
 import Toolbar from '@/component/studio/Toolbar';
 import CanvasBoard from '@/component/studio/CanvasBoard';
+import AIPromptPanel from '@/component/studio/AIPromptPanel';
+import ResultReveal from '@/component/studio/ResultReveal';
+import LayersPanel from '@/component/studio/LayersPanel';
+
+// --- UTILS ---
+const base64ToBlob = async (base64: string): Promise<Blob> => {
+  const res = await fetch(base64);
+  return res.blob();
+};
 
 export default function StudioPage() {
   const router = useRouter();
-
-  // --- 1. SUPABASE & AUTH STATE ---
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const [user, setUser] = useState<any>(null);
+  // --- STATE ---
+  const [user, setUser] = useState<any>(null); // <--- Added user state back for menu display
   const [profile, setProfile] = useState<any>(null);
   const [loadingUser, setLoadingUser] = useState(true);
-
-  // Menu State
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // --- 2. CANVAS & TOOL STATE ---
+  // Studio State
+  const [viewMode, setViewMode] = useState<'canvas' | 'result'>('canvas');
+  const [serverUrl, setServerUrl] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Canvas State
   const [activeTool, setActiveTool] = useState('pen');
   const [brushSize, setBrushSize] = useState(3);
   const [opacity, setOpacity] = useState(100);
-  const [importedImage, setImportedImage] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [canvasData, setCanvasData] = useState<string | null>(null);
 
-  // --- 3. AI & SERVER STATE ---
+  // Input State
+  const [sketchSource, setSketchSource] = useState<'canvas' | 'upload'>('canvas');
+  const [uploadedSketch, setUploadedSketch] = useState<File | null>(null);
+  const [uploadedSketchPreview, setUploadedSketchPreview] = useState<string | null>(null);
+  const [fabricFile, setFabricFile] = useState<File | null>(null);
+  const [fabricPreview, setFabricPreview] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
-  const [sketchData, setSketchData] = useState<string | null>(null);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+
+  // Result State
   const [isGenerating, setIsGenerating] = useState(false);
+  const [resultImage, setResultImage] = useState<string | null>(null);
+  const [lookbookBase64, setLookbookBase64] = useState<string | null>(null);
+  const [palette, setPalette] = useState<string[]>([]);
 
-  const [serverUrl, setServerUrl] = useState('');
-  const [showSettings, setShowSettings] = useState(true);
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
-
-  // --- EFFECT: INITIALIZE ---
+  // --- INITIALIZATION ---
   useEffect(() => {
     const initData = async () => {
-      // Check Session
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/auth');
-        return;
-      }
+      if (!user) { router.push('/auth'); return; }
       setUser(user);
 
-      // Fetch Profile Details
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
-
       setProfile(profileData);
       setLoadingUser(false);
     };
 
     initData();
 
-    // Click Outside Handler for Menu
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setIsMenuOpen(false);
       }
-    }
+    };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-
   }, [supabase, router]);
 
   // --- HANDLERS ---
-
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     router.push('/');
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSketchUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) setImportedImage(event.target.result as string);
-      };
-      reader.readAsDataURL(file);
+      setUploadedSketch(file);
+      setUploadedSketchPreview(URL.createObjectURL(file));
+      setSketchSource('upload');
     }
   };
 
-  const downloadBase64 = (base64Data: string, fileName: string) => {
-    try {
-      const link = document.createElement('a');
-      link.href = base64Data;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (e) {
-      alert("Download failed.");
+  const handleFabricUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFabricFile(file);
+      setFabricPreview(URL.createObjectURL(file));
     }
   };
 
-  const handleExportCanvas = () => {
-    if (!sketchData) {
-      alert("Please draw something first.");
-      return;
+  const handleFabricDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      setFabricFile(file);
+      setFabricPreview(URL.createObjectURL(file));
     }
-    downloadBase64(sketchData, 'fabricanova-sketch.png');
-  };
-
-  const handleDownloadAI = () => {
-    if (!generatedImage) {
-      alert("No AI image generated yet!");
-      return;
-    }
-    downloadBase64(generatedImage, 'fabricanova-ai-render.png');
   };
 
   const handleGenerate = async () => {
-    if (!serverUrl) { alert("⚠️ Please paste your Colab Ngrok URL!"); setShowSettings(true); return; }
-    if (!sketchData) { alert("⚠️ Please draw something or upload a sketch!"); return; }
-    if (!prompt) { alert("⚠️ Please enter a text prompt!"); return; }
+    if (!serverUrl) {
+      setShowSettings(true);
+      alert("⚠️ Please configure your AI Backend URL first.");
+      return;
+    }
 
     setIsGenerating(true);
-    setConnectionStatus('idle');
-
-    let finalUrl = serverUrl.trim();
-    if (finalUrl.endsWith('/')) finalUrl = finalUrl.slice(0, -1);
-    if (!finalUrl.endsWith('/generate')) finalUrl = finalUrl + '/generate';
+    setViewMode('result');
 
     try {
+      const formData = new FormData();
+      formData.append('prompt', prompt);
+
+      if (sketchSource === 'canvas' && canvasData) {
+        const blob = await base64ToBlob(canvasData);
+        formData.append('sketch', blob, 'canvas_sketch.png');
+      } else if (sketchSource === 'upload' && uploadedSketch) {
+        formData.append('sketch', uploadedSketch);
+      }
+
+      if (fabricFile) {
+        formData.append('swatch', fabricFile);
+      }
+
+      let finalUrl = serverUrl.trim();
+      if (finalUrl.endsWith('/')) finalUrl = finalUrl.slice(0, -1);
+      if (!finalUrl.endsWith('/generate')) finalUrl += '/generate';
+
       const response = await fetch(finalUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "69420"
-        },
-        body: JSON.stringify({ prompt: prompt, image: sketchData })
+        headers: { "ngrok-skip-browser-warning": "69420" },
+        body: formData
       });
 
       const data = await response.json();
 
       if (data.status === "success") {
-        setGeneratedImage(data.image);
-        setConnectionStatus('success');
+        setResultImage(data.image);
+        setLookbookBase64(data.lookbook);
+        setPalette(data.palette);
       } else {
-        alert("AI Error: " + data.message);
-        setConnectionStatus('error');
+        alert("AI Error: " + (data.message || "Unknown error"));
+        setViewMode('canvas');
       }
-    } catch (error) {
-      console.error(error);
-      setConnectionStatus('error');
-      alert("❌ Network Error: Could not connect to Colab.");
+    } catch (e) {
+      console.error(e);
+      alert("❌ Connection Failed. Check Ngrok URL.");
+      setViewMode('canvas');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  if (loadingUser) return (
-    <div className="h-screen w-full flex items-center justify-center bg-stone-50">
-      <div className="w-8 h-8 border-2 border-stone-200 border-t-stone-900 rounded-full animate-spin"></div>
-    </div>
-  );
+  const canGenerate = !!(prompt || (sketchSource === 'canvas' && canvasData) || fabricFile);
+
+  if (loadingUser) return <div className="h-screen flex items-center justify-center bg-stone-50">Loading Studio...</div>;
 
   return (
     <div className="h-screen flex flex-col bg-stone-50 overflow-hidden font-sans text-stone-900">
 
-      {/* =========================================================================
-          TOP HEADER (BRAND, TOOLS, & PROFILE MENU)
-         ========================================================================= */}
-      <header className="h-16 bg-white border-b border-stone-200 flex items-center justify-between px-6 z-50 shrink-0">
-
-        {/* LEFT: Logo & Breadcrumbs */}
+      {/* HEADER */}
+      <header className="h-14 bg-white border-b border-stone-200 flex items-center justify-between px-6 z-50 shrink-0">
         <div className="flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-2 hover:opacity-70 transition-opacity">
-            <div className="w-8 h-8 bg-stone-950 text-white flex items-center justify-center rounded-md font-serif font-bold italic">F</div>
-            <span className="font-serif text-xl font-bold text-stone-900 hidden md:block">Fabricanova</span>
-          </Link>
-          <div className="h-8 w-px bg-stone-200"></div>
-          <div className="flex flex-col">
-            <span className="text-xs font-bold uppercase tracking-widest text-stone-400">Project</span>
-            <span className="text-sm font-medium text-stone-900">SS26 / Draft 04</span>
+          <Link href="/" className="font-serif text-xl font-bold italic">Fabricanova</Link>
+          <div className="h-6 w-px bg-stone-200"></div>
+          <div className="flex bg-stone-100 rounded-lg p-1">
+            <button onClick={() => setViewMode('canvas')} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewMode === 'canvas' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}>Studio</button>
+            <button onClick={() => setViewMode('result')} disabled={!resultImage && !isGenerating} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewMode === 'result' ? 'bg-purple-600 text-white shadow-sm' : 'text-stone-400'}`}>Results</button>
           </div>
         </div>
 
-        {/* RIGHT: Tools & Profile */}
-        <div className="flex items-center gap-3">
-
-          {/* Status & Basic Tools */}
-          <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded text-xs font-bold border ${connectionStatus === 'success' ? 'bg-green-50 border-green-200 text-green-700' : connectionStatus === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-stone-50 border-stone-200 text-stone-500'}`}>
-            <Wifi size={12} />
-            {connectionStatus === 'success' ? 'AI Online' : connectionStatus === 'error' ? 'Offline' : 'Ready'}
-          </div>
-
-          <div className="h-6 w-px bg-stone-200 mx-2 hidden md:block"></div>
-
-          <button className="p-2 hover:bg-stone-100 rounded text-stone-500"><Undo size={18} /></button>
-          <button className="p-2 hover:bg-stone-100 rounded text-stone-500"><Redo size={18} /></button>
-
-          <button onClick={handleExportCanvas} className="bg-stone-100 text-stone-900 px-4 py-2 rounded text-sm font-medium hover:bg-stone-200 flex items-center gap-2 transition-colors">
-            Export <Download size={14} />
+        {/* RIGHT TOOLS & MENU */}
+        <div className="flex items-center gap-4">
+          <button onClick={() => setShowSettings(!showSettings)} className="flex items-center gap-2 text-xs font-medium text-stone-500 hover:text-stone-900 px-3 py-1.5 rounded-full border border-transparent hover:border-stone-200 transition-colors">
+            {serverUrl ? <Wifi size={14} className="text-green-500" /> : <Wifi size={14} className="text-red-400" />}
+            <span className="hidden sm:inline">{serverUrl ? 'AI Online' : 'Connect AI'}</span>
           </button>
 
-          <div className="h-6 w-px bg-stone-200 mx-2"></div>
-
-          {/* --- PROFILE DROPDOWN --- */}
+          {/* PROFILE DROPDOWN */}
           <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="flex items-center gap-2 p-1 pl-2 rounded-full border border-stone-200 hover:border-stone-300 hover:bg-stone-50 transition-all"
-            >
-              <span className="text-xs font-bold text-stone-600 hidden sm:block">
-                {profile?.full_name?.split(' ')[0] || "Designer"}
-              </span>
-              <div className="w-8 h-8 rounded-full bg-stone-200 flex items-center justify-center overflow-hidden border border-stone-300">
-                {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt="User" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="font-serif font-bold text-stone-500">{profile?.full_name?.[0] || user?.email?.[0]?.toUpperCase()}</span>
-                )}
-              </div>
-              <ChevronDown size={14} className="text-stone-400 mr-1" />
+            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="w-8 h-8 rounded-full bg-stone-200 overflow-hidden border border-stone-300 focus:ring-2 focus:ring-offset-1 focus:ring-stone-400">
+              {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <span className="flex items-center justify-center h-full text-xs font-bold">{profile?.full_name?.[0] || user?.email?.[0]?.toUpperCase()}</span>}
             </button>
 
-            {/* Dropdown Menu */}
             {isMenuOpen && (
               <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-stone-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
                 <div className="p-4 border-b border-stone-100 bg-stone-50/50">
@@ -263,117 +226,73 @@ export default function StudioPage() {
               </div>
             )}
           </div>
-
         </div>
       </header>
 
+      {/* SETTINGS MODAL */}
+      {showSettings && (
+        <div className="absolute top-16 right-20 z-[60] bg-white p-4 rounded-xl shadow-xl border border-stone-200 w-80 animate-in fade-in slide-in-from-top-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2"><Settings size={12} /> AI Backend Config</h3>
+          <input type="text" value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} placeholder="https://xxxx.ngrok-free.app" className="w-full text-xs p-2.5 border border-stone-300 rounded mb-2" />
+          <div className="flex justify-end"><button onClick={() => setShowSettings(false)} className="text-xs bg-stone-900 text-white px-4 py-1.5 rounded">Save</button></div>
+        </div>
+      )}
 
-      {/* =========================================================================
-          MAIN WORKSPACE
-         ========================================================================= */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* === MAIN LAYOUT === */}
+      <main className="flex-1 flex overflow-hidden">
 
-        {/* 1. INPUT PANEL (LEFT) */}
-        <aside className="w-80 bg-white border-r border-stone-200 flex flex-col z-10 p-5 overflow-y-auto">
+        {/* LEFT SIDEBAR: INPUTS */}
+        <AIPromptPanel
+          sketchSource={sketchSource}
+          setSketchSource={setSketchSource}
+          uploadedSketchPreview={uploadedSketchPreview}
+          onSketchUpload={handleSketchUpload}
+          fabricPreview={fabricPreview}
+          onFabricUpload={handleFabricUpload}
+          onFabricDrop={handleFabricDrop}
+          onClearFabric={() => { setFabricFile(null); setFabricPreview(null); }}
+          prompt={prompt}
+          setPrompt={setPrompt}
+          onGenerate={handleGenerate}
+          isGenerating={isGenerating}
+          canGenerate={canGenerate}
+        />
 
-          {/* Server Config */}
-          <div className="mb-6 bg-stone-50 border border-stone-200 rounded-lg p-3">
-            <button onClick={() => setShowSettings(!showSettings)} className="flex items-center justify-between w-full text-xs font-bold uppercase tracking-wider text-stone-500 mb-2 hover:text-stone-800">
-              <span className="flex items-center gap-2"><Settings size={12} /> AI Server Config</span>
-              <ChevronRight size={12} className={`transition-transform ${showSettings ? 'rotate-90' : ''}`} />
-            </button>
-            {showSettings && (
-              <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-                <p className="text-[10px] text-stone-400 mb-2 leading-snug">Paste <strong>Ngrok URL</strong> from Colab:</p>
-                <input type="text" placeholder="https://xxxx.ngrok-free.app" value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} className="w-full text-xs p-2 border border-stone-300 rounded mb-1 focus:ring-1 focus:ring-stone-900 outline-none bg-white" />
-                <div className="flex items-center gap-1 text-[10px] text-stone-400">
-                  {serverUrl.includes('ngrok') ? <CheckCircle2 size={10} className="text-green-500" /> : <AlertCircle size={10} />}
-                  {serverUrl.includes('ngrok') ? 'Valid format' : 'Waiting for URL...'}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Upload */}
-          <div className="mb-6 border-b border-stone-100 pb-6">
-            <h3 className="text-xs font-bold tracking-wider text-stone-400 uppercase mb-3 flex items-center gap-2">Reference</h3>
-            <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleImageUpload} />
-            <button onClick={() => fileInputRef.current?.click()} className="w-full py-2 bg-stone-100 border border-stone-200 text-stone-600 rounded text-xs font-bold uppercase tracking-wider hover:bg-stone-200 transition-all flex items-center justify-center gap-2">
-              <Upload size={14} /> Import Sketch
-            </button>
-          </div>
-
-          {/* Prompt */}
-          <div className="mb-6">
-            <h3 className="text-xs font-bold tracking-wider text-stone-400 uppercase mb-3 flex items-center gap-2"><Sparkles size={12} /> Design Prompt</h3>
-            <textarea className="w-full h-32 p-3 bg-stone-50 border border-stone-200 rounded text-sm focus:ring-1 focus:ring-stone-900 outline-none resize-none transition-all placeholder:text-stone-400" placeholder="E.g. A futuristic oversized bomber jacket..." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-            <button onClick={handleGenerate} disabled={isGenerating} className={`w-full mt-4 text-white py-2.5 rounded text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-50 transition-all ${isGenerating ? 'bg-stone-400 cursor-not-allowed' : 'bg-stone-900 hover:bg-stone-800'}`}>
-              {isGenerating ? <span className="flex items-center gap-2">Generating... <Sparkles className="animate-spin" size={14} /></span> : <>Generate Design <ChevronRight size={14} /></>}
-            </button>
-          </div>
-
-          {/* AI Result */}
-          {generatedImage && (
-            <div className="pt-6 border-t border-stone-100 animate-in fade-in slide-in-from-bottom-2">
-              <h3 className="text-xs font-bold tracking-wider text-stone-400 uppercase mb-3">AI Output</h3>
-              <div className="relative aspect-square border border-stone-200 rounded-lg overflow-hidden shadow-sm">
-                <Image src={generatedImage} fill alt="AI Result" className="object-cover" />
-              </div>
-              <button onClick={handleDownloadAI} className="w-full mt-2 text-xs font-medium text-stone-500 hover:text-stone-900 border border-stone-200 hover:border-stone-900 rounded py-2 transition-colors">
-                Download AI Image
-              </button>
+        {/* CENTER STAGE */}
+        <div className="flex-1 relative flex items-center justify-center bg-stone-100 overflow-hidden">
+          {/* Canvas View */}
+          <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${viewMode === 'canvas' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+            <Toolbar activeTool={activeTool} setActiveTool={setActiveTool} />
+            <div className="relative shadow-xl shadow-stone-300/50 border border-white bg-white">
+              <CanvasBoard
+                activeTool={activeTool}
+                brushSize={brushSize}
+                opacity={opacity}
+                importedImage={sketchSource === 'upload' ? uploadedSketchPreview : null}
+                onDrawEnd={(data) => setCanvasData(data)}
+              />
             </div>
-          )}
-        </aside>
-
-        {/* 2. CENTER CANVAS */}
-        <main className="flex-1 bg-stone-100 relative overflow-hidden flex items-center justify-center">
-          <Toolbar activeTool={activeTool} setActiveTool={setActiveTool} />
-          <div className="relative group overflow-hidden">
-            <div className="absolute inset-0 bg-grid-pattern opacity-10 pointer-events-none" />
-            <CanvasBoard
-              activeTool={activeTool}
-              brushSize={brushSize}
-              opacity={opacity}
-              importedImage={importedImage}
-              onDrawEnd={(data) => setSketchData(data)}
+          </div>
+          {/* Result View */}
+          <div className={`absolute inset-0 flex items-center justify-center bg-stone-50 transition-opacity duration-300 ${viewMode === 'result' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+            <ResultReveal
+              resultImage={resultImage}
+              palette={palette}
+              lookbookBase64={lookbookBase64}
+              onBack={() => setViewMode('canvas')}
+              isGenerating={isGenerating}
             />
           </div>
-        </main>
+        </div>
 
-        {/* 3. PROPERTIES PANEL (RIGHT) */}
-        <aside className="w-72 bg-white border-l border-stone-200 z-10 flex flex-col">
-          <div className="flex-1 p-5 border-b border-stone-200 overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-bold tracking-wider text-stone-400 uppercase flex items-center gap-2"><Layers size={12} /> Layers</h3>
-              <button className="text-xs text-stone-500 hover:text-stone-900 font-medium">+ New</button>
-            </div>
-            <div className="space-y-2">
-              <div className="p-3 rounded-lg bg-stone-100 border border-stone-200 flex items-center justify-between shadow-sm cursor-pointer border-l-4 border-l-stone-900">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-white border border-stone-300 rounded flex items-center justify-center"><span className="text-[10px] font-bold">1</span></div>
-                  <div className="text-sm font-medium text-stone-900">Sketch Layer</div>
-                </div>
-              </div>
-            </div>
+        {/* RIGHT SIDEBAR: LAYERS (Visible only in Canvas Mode) */}
+        {viewMode === 'canvas' && (
+          <div className="w-72 border-l border-stone-200 bg-white z-20 h-full">
+            <LayersPanel />
           </div>
+        )}
 
-          <div className="h-1/2 p-5 bg-stone-50/50">
-            <h3 className="text-xs font-bold tracking-wider text-stone-400 uppercase mb-6 flex items-center gap-2"><Sliders size={12} /> Tool Properties</h3>
-            <div className="space-y-6">
-              <div>
-                <div className="flex justify-between text-xs font-medium text-stone-600 mb-2"><span>Stroke Weight</span><span>{brushSize}px</span></div>
-                <input type="range" min="1" max="50" value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} className="w-full accent-stone-900 h-1 bg-stone-200 rounded-lg appearance-none cursor-pointer" />
-              </div>
-              <div>
-                <div className="flex justify-between text-xs font-medium text-stone-600 mb-2"><span>Opacity</span><span>{opacity}%</span></div>
-                <input type="range" min="1" max="100" value={opacity} onChange={(e) => setOpacity(parseInt(e.target.value))} className="w-full accent-stone-900 h-1 bg-stone-200 rounded-lg appearance-none cursor-pointer" />
-              </div>
-            </div>
-          </div>
-        </aside>
-
-      </div>
+      </main>
     </div>
   );
 }
