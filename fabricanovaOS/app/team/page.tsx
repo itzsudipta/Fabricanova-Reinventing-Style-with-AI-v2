@@ -12,7 +12,7 @@ export default function TeamPage() {
     const teamMembers = [
         {
             name: "Sudipta Sarkar",
-            role: "Project Lead & Web and ML",
+            role: "Lead Developer (Web & ML)",
             icon: Code,
             id: "TEAMF_01",
             // Placeholder image - Replace with actual local path e.g., "/images/sudipta.jpg"
@@ -22,30 +22,30 @@ export default function TeamPage() {
         },
         {
             name: "Avirup Guha Biswas",
-            role: "Web & Doc",
+            role: "Documentation & QA Lead",
             icon: PenTool,
             id: "TEAMF_02",
             image: "/Team/Avirup.jpeg",
-            bio: "Parsons graduate. Bridging trad fashion & tech.",
-            tags: ["Unreal", "Art Direction"]
+            bio: "Student At NiT Kolkata.",
+            tags: ["Technical Writing", "System Testing", "Quality Assurance"]
         },
         {
             name: "Reema Das",
-            role: "Ui/UX",
+            role: "UI/UX Designer",
             icon: Sparkles,
             id: "TEAMF_03",
             image: "/Team/ReemaDas.jpeg",
-            bio: "Specialist in diffusion models and fabric physics.",
-            tags: ["Designer","Planning"]
+            bio: "Student At NiT Kolkata",
+            tags: ["Visual Design", "Frontend Styling", "User Flow"]
         },
         {
             name: "Swagata Lahiri",
-            role: "Testing and Doc",
+            role: "Data & Research Lead",
             icon: User,
             id: "TEAMF_04",
             image: "/Team/Swagslahiri.jpeg",
-            bio: "Scaling ethical AI tools for creators.",
-            tags: ["Strategy", "Growth"]
+            bio: "Student At NiT Kolkata",
+            tags: ["Data Engineering", "Model Training", "Statistical Analysis"]
         },
     ];
 
