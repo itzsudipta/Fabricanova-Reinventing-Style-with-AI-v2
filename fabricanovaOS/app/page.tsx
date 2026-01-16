@@ -49,39 +49,39 @@ export default function Home() {
     const teamMembers = [
         {
             name: "Sudipta Sarkar",
-            role: "Project Lead & Web and ML",
+            role: "Lead Developer (Web & ML)",
             icon: Code,
             id: "TEAMF_01",
             image: "/Team/SudiptaSakar.jpeg",
             bio: "Student At NiT Kolkata",
-            tags: ["React", "Diffusion", "FastAPI"]
+            tags: ["React", "Stable Diffusion", "FastAPI"]
         },
         {
             name: "Avirup Guha Biswas",
-            role: "Web & Doc",
+            role: "Documentation & QA Lead",
             icon: PenTool,
             id: "TEAMF_02",
             image: "/Team/Avirup.jpeg",
-            bio: "Student At NiT Kolkata",
-            tags: ["Design"]
+            bio: "Student At NiT Kolkata.",
+            tags: ["Technical Writing", "System Testing", "Quality Assurance"]
         },
         {
             name: "Reema Das",
-            role: "Ui/UX",
+            role: "UI/UX Designer",
             icon: Sparkles,
             id: "TEAMF_03",
             image: "/Team/ReemaDas.jpeg",
             bio: "Student At NiT Kolkata",
-            tags: ["UI","Planning"]
+            tags: ["Visual Design", "Frontend Styling", "User Flow"]
         },
         {
             name: "Swagata Lahiri",
-            role: "Testing and Doc",
+            role: "Data & Research Lead",
             icon: User,
             id: "TEAMF_04",
             image: "/Team/Swagslahiri.jpeg",
             bio: "Student At NiT Kolkata",
-            tags: ["Strategy","Growth"]
+            tags: ["Data Engineering", "Model Training", "Statistical Analysis"]
         },
     ];
 
