@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
-import { Settings, Wifi, LogOut, User, Shield } from 'lucide-react'; // <--- Added User, Shield
+import { Settings, Wifi, LogOut, User, Shield } from 'lucide-react';
 
 // --- COMPONENTS ---
 import Toolbar from '@/component/studio/Toolbar';
@@ -28,7 +28,7 @@ export default function StudioPage() {
   );
 
   // --- STATE ---
-  const [user, setUser] = useState<any>(null); // <--- Added user state back for menu display
+  const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loadingUser, setLoadingUser] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -177,12 +177,14 @@ export default function StudioPage() {
   if (loadingUser) return <div className="h-screen flex items-center justify-center bg-stone-50">Loading Studio...</div>;
 
   return (
-    <div className="h-screen flex flex-col bg-stone-50 overflow-hidden font-sans text-stone-900">
+    // Fixed: Added overflow-hidden to body but allowed internal flex scrolling
+    <div className="h-screen flex flex-col bg-stone-50 font-sans text-stone-900 overflow-hidden">
 
       {/* HEADER */}
-      <header className="h-14 bg-white border-b border-stone-200 flex items-center justify-between px-6 z-50 shrink-0">
+      {/* Fixed: Adjusted padding for mobile (px-4) */}
+      <header className="h-14 bg-white border-b border-stone-200 flex items-center justify-between px-4 md:px-6 z-50 shrink-0">
         <div className="flex items-center gap-4">
-          <Link href="/" className="font-serif text-xl font-bold italic">Fabricanova</Link>
+          <Link href="/" className="font-serif text-lg md:text-xl font-bold italic">Fabricanova</Link>
           <div className="h-6 w-px bg-stone-200"></div>
           <div className="flex bg-stone-100 rounded-lg p-1">
             <button onClick={() => setViewMode('canvas')} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewMode === 'canvas' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}>Studio</button>
@@ -191,8 +193,8 @@ export default function StudioPage() {
         </div>
 
         {/* RIGHT TOOLS & MENU */}
-        <div className="flex items-center gap-4">
-          <button onClick={() => setShowSettings(!showSettings)} className="flex items-center gap-2 text-xs font-medium text-stone-500 hover:text-stone-900 px-3 py-1.5 rounded-full border border-transparent hover:border-stone-200 transition-colors">
+        <div className="flex items-center gap-2 md:gap-4">
+          <button onClick={() => setShowSettings(!showSettings)} className="flex items-center gap-2 text-xs font-medium text-stone-500 hover:text-stone-900 px-2 md:px-3 py-1.5 rounded-full border border-transparent hover:border-stone-200 transition-colors">
             {serverUrl ? <Wifi size={14} className="text-green-500" /> : <Wifi size={14} className="text-red-400" />}
             <span className="hidden sm:inline">{serverUrl ? 'AI Online' : 'Connect AI'}</span>
           </button>
@@ -200,7 +202,7 @@ export default function StudioPage() {
           {/* PROFILE DROPDOWN */}
           <div className="relative" ref={menuRef}>
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="w-8 h-8 rounded-full bg-stone-200 overflow-hidden border border-stone-300 focus:ring-2 focus:ring-offset-1 focus:ring-stone-400">
-              {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : <span className="flex items-center justify-center h-full text-xs font-bold">{profile?.full_name?.[0] || user?.email?.[0]?.toUpperCase()}</span>}
+              {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" alt="Profile" /> : <span className="flex items-center justify-center h-full text-xs font-bold">{profile?.full_name?.[0] || user?.email?.[0]?.toUpperCase()}</span>}
             </button>
 
             {isMenuOpen && (
@@ -230,8 +232,9 @@ export default function StudioPage() {
       </header>
 
       {/* SETTINGS MODAL */}
+      {/* Fixed: Changed positioning to fit mobile screens (right-4 instead of right-20, max-w) */}
       {showSettings && (
-        <div className="absolute top-16 right-20 z-[60] bg-white p-4 rounded-xl shadow-xl border border-stone-200 w-80 animate-in fade-in slide-in-from-top-2">
+        <div className="absolute top-16 right-4 md:right-20 z-[60] bg-white p-4 rounded-xl shadow-xl border border-stone-200 w-80 max-w-[90vw] animate-in fade-in slide-in-from-top-2">
           <h3 className="text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2"><Settings size={12} /> AI Backend Config</h3>
           <input type="text" value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} placeholder="https://xxxx.ngrok-free.app" className="w-full text-xs p-2.5 border border-stone-300 rounded mb-2" />
           <div className="flex justify-end"><button onClick={() => setShowSettings(false)} className="text-xs bg-stone-900 text-white px-4 py-1.5 rounded">Save</button></div>
@@ -239,27 +242,32 @@ export default function StudioPage() {
       )}
 
       {/* === MAIN LAYOUT === */}
-      <main className="flex-1 flex overflow-hidden">
+      {/* Fixed: flex-col for mobile, flex-row for desktop. Added overflow-y-auto so mobile can scroll. */}
+      <main className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden relative z-0">
 
         {/* LEFT SIDEBAR: INPUTS */}
-        <AIPromptPanel
-          sketchSource={sketchSource}
-          setSketchSource={setSketchSource}
-          uploadedSketchPreview={uploadedSketchPreview}
-          onSketchUpload={handleSketchUpload}
-          fabricPreview={fabricPreview}
-          onFabricUpload={handleFabricUpload}
-          onFabricDrop={handleFabricDrop}
-          onClearFabric={() => { setFabricFile(null); setFabricPreview(null); }}
-          prompt={prompt}
-          setPrompt={setPrompt}
-          onGenerate={handleGenerate}
-          isGenerating={isGenerating}
-          canGenerate={canGenerate}
-        />
+        {/* Fixed: Wrapped AIPromptPanel to handle responsive width and order */}
+        <div className="order-2 lg:order-1 w-full lg:w-80 shrink-0 border-b lg:border-b-0 lg:border-r border-stone-200 bg-white">
+          <AIPromptPanel
+            sketchSource={sketchSource}
+            setSketchSource={setSketchSource}
+            uploadedSketchPreview={uploadedSketchPreview}
+            onSketchUpload={handleSketchUpload}
+            fabricPreview={fabricPreview}
+            onFabricUpload={handleFabricUpload}
+            onFabricDrop={handleFabricDrop}
+            onClearFabric={() => { setFabricFile(null); setFabricPreview(null); }}
+            prompt={prompt}
+            setPrompt={setPrompt}
+            onGenerate={handleGenerate}
+            isGenerating={isGenerating}
+            canGenerate={canGenerate}
+          />
+        </div>
 
         {/* CENTER STAGE */}
-        <div className="flex-1 relative flex items-center justify-center bg-stone-100 overflow-hidden">
+        {/* Fixed: Added min-h for mobile so canvas doesn't collapse. Added touch-none for better drawing. order-1 ensures canvas is top on mobile. */}
+        <div className="order-1 lg:order-2 flex-1 relative flex items-center justify-center bg-stone-100 overflow-hidden min-h-[50vh] lg:min-h-0 touch-none">
           {/* Canvas View */}
           <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${viewMode === 'canvas' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
             <Toolbar activeTool={activeTool} setActiveTool={setActiveTool} />
@@ -286,8 +294,9 @@ export default function StudioPage() {
         </div>
 
         {/* RIGHT SIDEBAR: LAYERS (Visible only in Canvas Mode) */}
+        {/* Fixed: Responsive width (w-full on mobile). Order-3 places it at bottom of mobile stack. */}
         {viewMode === 'canvas' && (
-          <div className="w-72 border-l border-stone-200 bg-white z-20 h-full">
+          <div className="order-3 w-full lg:w-72 border-t lg:border-t-0 lg:border-l border-stone-200 bg-white shrink-0">
             <LayersPanel />
           </div>
         )}
