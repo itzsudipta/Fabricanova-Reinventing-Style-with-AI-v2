@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://www.nit.ac.in/img/logo.png" alt="College Logo" width="220"/><br>
   <b style="font-size:2em;">Fabricanova : Reinventing Style with AI</b><br><br>
-  <a href="https://your-live-demo-link.com"><b>Live</b></a> &nbsp; | &nbsp;
+  <a href="https://fabricanova-reinventing-style-with.vercel.app/"><b>Live</b></a> &nbsp; | &nbsp;
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="MIT License"></a>
   <a href="https://github.com/NiT Kolkata/fabricanova-os/releases"><img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version"></a>
 </p>
@@ -113,22 +113,22 @@ Visit [http://localhost:3000](http://localhost:3000) to access the app.
     <td align="center">
       <img src="./fabricanovaOS/public/Team/SudiptaSakar.jpeg" width="80"/><br/>
       <b>Sudipta Sarkar</b><br/>
-      Project Lead / Web & ML
+      Lead Developer (ML & Web)
     </td>
     <td align="center">
       <img src="./fabricanovaOS/public/Team/Avirup.jpeg" width="80"/><br/>
       <b>Avirup Guha Biswas</b><br/>
-      Web Assist /Focus
+      Documentation & QA Lead
     </td>
     <td align="center">
       <img src="./fabricanovaOS/public/Team/ReemaDas.jpeg" width="80"/><br/>
       <b>Reema Das</b><br/>
-      Designer/UI&UX
+      UI/UX Designer
     </td>
     <td align="center">
       <img src="./fabricanovaOS/public/Team/Swagslahiri.jpeg" width="80"/><br/>
       <b>Swagata Lahiri</b><br/>
-      Designer and Tester/UI
+      Data & Research Lead
     </td>
   </tr>
 </table>
@@ -149,5 +149,5 @@ This project is licensed under the MIT License.
 
 ## Acknowledgements
 
-- Built in NiT Kolkata buy our team
-- Powered by open-source ML and the global fashion tech community.
+- Built in NiT Kolkata by our team
+
