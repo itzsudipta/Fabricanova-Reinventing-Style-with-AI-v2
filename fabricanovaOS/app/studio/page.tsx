@@ -5,7 +5,8 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
-import { Settings, Wifi, LogOut, User, Shield } from 'lucide-react';
+import { Settings, Wifi, LogOut, User, Shield, Save, Loader2 } from 'lucide-react'; // Added Loader2
+import { v4 as uuidv4 } from 'uuid'; // Added UUID
 
 // --- COMPONENTS ---
 import Toolbar from '@/component/studio/Toolbar';
@@ -14,10 +15,27 @@ import AIPromptPanel from '@/component/studio/AIPromptPanel';
 import ResultReveal from '@/component/studio/ResultReveal';
 import LayersPanel from '@/component/studio/LayersPanel';
 
-// --- UTILS ---
-const base64ToBlob = async (base64: string): Promise<Blob> => {
-  const res = await fetch(base64);
-  return res.blob();
+// --- UTILS (Robust Base64 Converter) ---
+const base64ToBlob = (base64Data: string, contentType: string = 'image/png'): Blob => {
+  // Clean base64 string
+  const base64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+  
+  const byteCharacters = atob(base64);
+  const byteArrays = [];
+
+  for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+    const slice = byteCharacters.slice(offset, offset + 512);
+    const byteNumbers = new Array(slice.length);
+    
+    for (let i = 0; i < slice.length; i++) {
+      byteNumbers[i] = slice.charCodeAt(i);
+    }
+    
+    const byteArray = new Uint8Array(byteNumbers);
+    byteArrays.push(byteArray);
+  }
+
+  return new Blob(byteArrays, { type: contentType });
 };
 
 export default function StudioPage() {
@@ -55,6 +73,7 @@ export default function StudioPage() {
 
   // Result State
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // Saving State
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [lookbookBase64, setLookbookBase64] = useState<string | null>(null);
   const [palette, setPalette] = useState<string[]>([]);
@@ -118,6 +137,60 @@ export default function StudioPage() {
     }
   };
 
+  // --- DATABASE HELPERS ---
+  const uploadFileToStorage = async (file: Blob | File, bucket: string, path: string) => {
+    const { error } = await supabase.storage.from(bucket).upload(path, file, { 
+      upsert: true,
+      contentType: 'image/png' 
+    });
+    if (error) throw error;
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+    return data.publicUrl;
+  };
+
+  const saveDesignToDB = async (
+    promptText: string,
+    sketchUrl: string | null,
+    swatchUrl: string | null,
+    resultUrl: string | null,
+    lookbookUrl: string | null,
+    paletteColors: string[]
+  ) => {
+    try {
+      setIsSaving(true);
+      
+      console.log("Attempting to save to DB with:", {
+        user_id: user?.id,
+        prompt: promptText,
+        // ... other fields for debugging
+      });
+
+      const { data, error } = await supabase.from('designs').insert({
+        user_id: user.id, // Ensure this user exists in auth.users
+        prompt: promptText,
+        sketch_url: sketchUrl,
+        swatch_url: swatchUrl,
+        image_url: resultUrl,
+        lookbook_url: lookbookUrl,
+        palette: paletteColors,
+      }).select(); // .select() returns the saved data, helpful for verification
+
+      if (error) {
+        console.error("Supabase DB Error Details:", error);
+        throw error;
+      }
+
+      console.log("Design Saved Successfully:", data);
+      
+    } catch (err: any) {
+      console.error("FULL ERROR OBJECT:", err);
+      alert(`Database Save Failed: ${err.message || err.details || "Check console"}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // --- GENERATE & SAVE ---
   const handleGenerate = async () => {
     if (!serverUrl) {
       setShowSettings(true);
@@ -132,10 +205,13 @@ export default function StudioPage() {
       const formData = new FormData();
       formData.append('prompt', prompt);
 
+      // Prepare Sketch Blob for both API and DB
+      let sketchBlob: Blob | null = null;
       if (sketchSource === 'canvas' && canvasData) {
-        const blob = await base64ToBlob(canvasData);
-        formData.append('sketch', blob, 'canvas_sketch.png');
+        sketchBlob = base64ToBlob(canvasData); // Synchronous now
+        formData.append('sketch', sketchBlob, 'canvas_sketch.png');
       } else if (sketchSource === 'upload' && uploadedSketch) {
+        sketchBlob = uploadedSketch;
         formData.append('sketch', uploadedSketch);
       }
 
@@ -159,6 +235,48 @@ export default function StudioPage() {
         setResultImage(data.image);
         setLookbookBase64(data.lookbook);
         setPalette(data.palette);
+
+        // --- BACKGROUND SAVE TO SUPABASE ---
+        (async () => {
+            try {
+                const designId = uuidv4();
+                let finalSketchUrl = null;
+                let finalSwatchUrl = null;
+                let finalResultUrl = null;
+                let finalLookbookUrl = null;
+
+                // 1. Upload Inputs
+                if (sketchBlob) {
+                    finalSketchUrl = await uploadFileToStorage(sketchBlob, 'studio-inputs', `${user.id}/${designId}_sketch.png`);
+                }
+                if (fabricFile) {
+                    finalSwatchUrl = await uploadFileToStorage(fabricFile, 'studio-inputs', `${user.id}/${designId}_swatch.png`);
+                }
+
+                // 2. Upload Outputs (Using new base64ToBlob utility)
+                if (data.image) {
+                    const resultBlob = base64ToBlob(data.image);
+                    finalResultUrl = await uploadFileToStorage(resultBlob, 'studio-outputs', `${user.id}/${designId}_result.png`);
+                }
+                if (data.lookbook) {
+                    const lookbookBlob = base64ToBlob(data.lookbook);
+                    finalLookbookUrl = await uploadFileToStorage(lookbookBlob, 'studio-outputs', `${user.id}/${designId}_lookbook.png`);
+                }
+
+                // 3. Save Record to DB
+                await saveDesignToDB(
+                    prompt, 
+                    finalSketchUrl, 
+                    finalSwatchUrl, 
+                    finalResultUrl, 
+                    finalLookbookUrl, 
+                    data.palette
+                );
+            } catch (saveError: any) {
+                console.error("Background save failed:", saveError);
+            }
+        })();
+
       } else {
         alert("AI Error: " + (data.message || "Unknown error"));
         setViewMode('canvas');
@@ -174,7 +292,7 @@ export default function StudioPage() {
 
   const canGenerate = !!(prompt || (sketchSource === 'canvas' && canvasData) || fabricFile);
 
-  if (loadingUser) return <div className="h-screen flex items-center justify-center bg-stone-50">Loading Studio...</div>;
+  if (loadingUser) return <div className="h-screen flex items-center justify-center bg-stone-50"><Loader2 className="animate-spin" /></div>;
 
   return (
     // Fixed: Added overflow-hidden to body but allowed internal flex scrolling
@@ -194,6 +312,8 @@ export default function StudioPage() {
 
         {/* RIGHT TOOLS & MENU */}
         <div className="flex items-center gap-2 md:gap-4">
+          {isSaving && <span className="text-xs text-stone-400 flex items-center gap-1 animate-pulse"><Save size={12} /> Saving...</span>}
+          
           <button onClick={() => setShowSettings(!showSettings)} className="flex items-center gap-2 text-xs font-medium text-stone-500 hover:text-stone-900 px-2 md:px-3 py-1.5 rounded-full border border-transparent hover:border-stone-200 transition-colors">
             {serverUrl ? <Wifi size={14} className="text-green-500" /> : <Wifi size={14} className="text-red-400" />}
             <span className="hidden sm:inline">{serverUrl ? 'AI Online' : 'Connect AI'}</span>
