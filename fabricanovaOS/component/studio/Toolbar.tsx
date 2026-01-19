@@ -8,17 +8,24 @@ export default function Toolbar({ activeTool, setActiveTool }: { activeTool: str
         { id: 'shape', icon: ImageIcon },
         { id: 'text', icon: Type },
         { id: 'eraser', icon: Eraser },
+        // Added Grid mostly for visual consistency with your request
+        { id: 'grid', icon: Grid }, 
     ];
 
     return (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 bg-white px-2 py-2 rounded-lg shadow-lg shadow-stone-900/5 border border-stone-200 flex items-center gap-1 z-20">
+        <div className="flex items-center gap-1">
             {tools.map((tool) => (
                 <button
                     key={tool.id}
                     onClick={() => setActiveTool(tool.id)}
-                    className={`p-2 rounded transition-colors ${activeTool === tool.id ? 'bg-stone-900 text-white' : 'text-stone-500 hover:bg-stone-100'}`}
+                    className={`p-2 rounded-lg transition-all duration-200 ${
+                        activeTool === tool.id 
+                        ? 'bg-stone-900 text-white shadow-sm scale-105' 
+                        : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'
+                    }`}
+                    title={tool.id.charAt(0).toUpperCase() + tool.id.slice(1)}
                 >
-                    <tool.icon size={18} />
+                    <tool.icon size={18} strokeWidth={2} />
                 </button>
             ))}
         </div>
