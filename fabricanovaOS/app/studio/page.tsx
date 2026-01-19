@@ -5,8 +5,8 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
-import { Settings, Wifi, LogOut, User, Shield, Save, Loader2 } from 'lucide-react'; // Added Loader2
-import { v4 as uuidv4 } from 'uuid'; // Added UUID
+import { Settings, Wifi, LogOut, User, Shield, Save, Loader2, Layers, X } from 'lucide-react'; 
+import { v4 as uuidv4 } from 'uuid';
 
 // --- COMPONENTS ---
 import Toolbar from '@/component/studio/Toolbar';
@@ -17,20 +17,16 @@ import LayersPanel from '@/component/studio/LayersPanel';
 
 // --- UTILS (Robust Base64 Converter) ---
 const base64ToBlob = (base64Data: string, contentType: string = 'image/png'): Blob => {
-  // Clean base64 string
   const base64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
-  
   const byteCharacters = atob(base64);
   const byteArrays = [];
 
   for (let offset = 0; offset < byteCharacters.length; offset += 512) {
     const slice = byteCharacters.slice(offset, offset + 512);
     const byteNumbers = new Array(slice.length);
-    
     for (let i = 0; i < slice.length; i++) {
       byteNumbers[i] = slice.charCodeAt(i);
     }
-    
     const byteArray = new Uint8Array(byteNumbers);
     byteArrays.push(byteArray);
   }
@@ -56,6 +52,9 @@ export default function StudioPage() {
   const [viewMode, setViewMode] = useState<'canvas' | 'result'>('canvas');
   const [serverUrl, setServerUrl] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  
+  // Mobile Layers State
+  const [showMobileLayers, setShowMobileLayers] = useState(false);
 
   // Canvas State
   const [activeTool, setActiveTool] = useState('pen');
@@ -73,7 +72,7 @@ export default function StudioPage() {
 
   // Result State
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false); // Saving State
+  const [isSaving, setIsSaving] = useState(false);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [lookbookBase64, setLookbookBase64] = useState<string | null>(null);
   const [palette, setPalette] = useState<string[]>([]);
@@ -137,7 +136,6 @@ export default function StudioPage() {
     }
   };
 
-  // --- DATABASE HELPERS ---
   const uploadFileToStorage = async (file: Blob | File, bucket: string, path: string) => {
     const { error } = await supabase.storage.from(bucket).upload(path, file, { 
       upsert: true,
@@ -158,39 +156,26 @@ export default function StudioPage() {
   ) => {
     try {
       setIsSaving(true);
-      
-      console.log("Attempting to save to DB with:", {
-        user_id: user?.id,
-        prompt: promptText,
-        // ... other fields for debugging
-      });
-
       const { data, error } = await supabase.from('designs').insert({
-        user_id: user.id, // Ensure this user exists in auth.users
+        user_id: user.id,
         prompt: promptText,
         sketch_url: sketchUrl,
         swatch_url: swatchUrl,
         image_url: resultUrl,
         lookbook_url: lookbookUrl,
         palette: paletteColors,
-      }).select(); // .select() returns the saved data, helpful for verification
+      }).select();
 
-      if (error) {
-        console.error("Supabase DB Error Details:", error);
-        throw error;
-      }
-
+      if (error) throw error;
       console.log("Design Saved Successfully:", data);
-      
     } catch (err: any) {
-      console.error("FULL ERROR OBJECT:", err);
-      alert(`Database Save Failed: ${err.message || err.details || "Check console"}`);
+      console.error("Save Error:", err);
+      alert(`Database Save Failed: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
   };
 
-  // --- GENERATE & SAVE ---
   const handleGenerate = async () => {
     if (!serverUrl) {
       setShowSettings(true);
@@ -205,10 +190,9 @@ export default function StudioPage() {
       const formData = new FormData();
       formData.append('prompt', prompt);
 
-      // Prepare Sketch Blob for both API and DB
       let sketchBlob: Blob | null = null;
       if (sketchSource === 'canvas' && canvasData) {
-        sketchBlob = base64ToBlob(canvasData); // Synchronous now
+        sketchBlob = base64ToBlob(canvasData);
         formData.append('sketch', sketchBlob, 'canvas_sketch.png');
       } else if (sketchSource === 'upload' && uploadedSketch) {
         sketchBlob = uploadedSketch;
@@ -236,7 +220,6 @@ export default function StudioPage() {
         setLookbookBase64(data.lookbook);
         setPalette(data.palette);
 
-        // --- BACKGROUND SAVE TO SUPABASE ---
         (async () => {
             try {
                 const designId = uuidv4();
@@ -245,33 +228,12 @@ export default function StudioPage() {
                 let finalResultUrl = null;
                 let finalLookbookUrl = null;
 
-                // 1. Upload Inputs
-                if (sketchBlob) {
-                    finalSketchUrl = await uploadFileToStorage(sketchBlob, 'studio-inputs', `${user.id}/${designId}_sketch.png`);
-                }
-                if (fabricFile) {
-                    finalSwatchUrl = await uploadFileToStorage(fabricFile, 'studio-inputs', `${user.id}/${designId}_swatch.png`);
-                }
+                if (sketchBlob) finalSketchUrl = await uploadFileToStorage(sketchBlob, 'studio-inputs', `${user.id}/${designId}_sketch.png`);
+                if (fabricFile) finalSwatchUrl = await uploadFileToStorage(fabricFile, 'studio-inputs', `${user.id}/${designId}_swatch.png`);
+                if (data.image) finalResultUrl = await uploadFileToStorage(base64ToBlob(data.image), 'studio-outputs', `${user.id}/${designId}_result.png`);
+                if (data.lookbook) finalLookbookUrl = await uploadFileToStorage(base64ToBlob(data.lookbook), 'studio-outputs', `${user.id}/${designId}_lookbook.png`);
 
-                // 2. Upload Outputs (Using new base64ToBlob utility)
-                if (data.image) {
-                    const resultBlob = base64ToBlob(data.image);
-                    finalResultUrl = await uploadFileToStorage(resultBlob, 'studio-outputs', `${user.id}/${designId}_result.png`);
-                }
-                if (data.lookbook) {
-                    const lookbookBlob = base64ToBlob(data.lookbook);
-                    finalLookbookUrl = await uploadFileToStorage(lookbookBlob, 'studio-outputs', `${user.id}/${designId}_lookbook.png`);
-                }
-
-                // 3. Save Record to DB
-                await saveDesignToDB(
-                    prompt, 
-                    finalSketchUrl, 
-                    finalSwatchUrl, 
-                    finalResultUrl, 
-                    finalLookbookUrl, 
-                    data.palette
-                );
+                await saveDesignToDB(prompt, finalSketchUrl, finalSwatchUrl, finalResultUrl, finalLookbookUrl, data.palette);
             } catch (saveError: any) {
                 console.error("Background save failed:", saveError);
             }
@@ -295,31 +257,60 @@ export default function StudioPage() {
   if (loadingUser) return <div className="h-screen flex items-center justify-center bg-stone-50"><Loader2 className="animate-spin" /></div>;
 
   return (
-    // Fixed: Added overflow-hidden to body but allowed internal flex scrolling
     <div className="h-screen flex flex-col bg-stone-50 font-sans text-stone-900 overflow-hidden">
+      
+      {/* Hide Scrollbar Style for Desktop Panel */}
+      <style jsx global>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
 
       {/* HEADER */}
-      {/* Fixed: Adjusted padding for mobile (px-4) */}
-      <header className="h-14 bg-white border-b border-stone-200 flex items-center justify-between px-4 md:px-6 z-50 shrink-0">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="font-serif text-lg md:text-xl font-bold italic">Fabricanova</Link>
-          <div className="h-6 w-px bg-stone-200"></div>
-          <div className="flex bg-stone-100 rounded-lg p-1">
-            <button onClick={() => setViewMode('canvas')} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewMode === 'canvas' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}>Studio</button>
-            <button onClick={() => setViewMode('result')} disabled={!resultImage && !isGenerating} className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewMode === 'result' ? 'bg-purple-600 text-white shadow-sm' : 'text-stone-400'}`}>Results</button>
+      <header className="h-14 bg-white border-b border-stone-200 flex items-center justify-between px-3 md:px-6 z-50 shrink-0">
+        <div className="flex items-center gap-2 lg:gap-4">
+          <Link href="/" className="font-serif text-lg md:text-xl font-bold italic truncate">Fabricanova</Link>
+          <div className="h-6 w-px bg-stone-200 hidden sm:block"></div>
+          
+          <div className="flex bg-stone-100 rounded-lg p-1 shrink-0">
+            <button 
+              onClick={() => setViewMode('canvas')} 
+              className={`px-2.5 py-1 text-[11px] md:text-xs font-bold rounded-md transition-all ${viewMode === 'canvas' ? 'bg-white shadow-sm text-stone-900' : 'text-stone-500'}`}
+            >
+              Studio
+            </button>
+            <button 
+              onClick={() => setViewMode('result')} 
+              disabled={!resultImage && !isGenerating} 
+              className={`px-2.5 py-1 text-[11px] md:text-xs font-bold rounded-md transition-all ${viewMode === 'result' ? 'bg-purple-600 text-white shadow-sm' : 'text-stone-400'}`}
+            >
+              Results
+            </button>
           </div>
         </div>
 
-        {/* RIGHT TOOLS & MENU */}
         <div className="flex items-center gap-2 md:gap-4">
-          {isSaving && <span className="text-xs text-stone-400 flex items-center gap-1 animate-pulse"><Save size={12} /> Saving...</span>}
+          {viewMode === 'canvas' && (
+            <button 
+              onClick={() => setShowMobileLayers(!showMobileLayers)}
+              className="lg:hidden p-1.5 md:p-2 rounded-full hover:bg-stone-100 text-stone-600 border border-stone-200"
+              title="Layers"
+            >
+              <Layers size={16} className="md:w-[18px] md:h-[18px]" />
+            </button>
+          )}
+
+          {isSaving && <span className="hidden md:flex text-xs text-stone-400 items-center gap-1 animate-pulse"><Save size={12} /> Saving...</span>}
           
-          <button onClick={() => setShowSettings(!showSettings)} className="flex items-center gap-2 text-xs font-medium text-stone-500 hover:text-stone-900 px-2 md:px-3 py-1.5 rounded-full border border-transparent hover:border-stone-200 transition-colors">
+          <button onClick={() => setShowSettings(!showSettings)} className="flex items-center gap-1.5 md:gap-2 text-xs font-medium text-stone-500 hover:text-stone-900 px-2 md:px-3 py-1.5 rounded-full border border-transparent hover:border-stone-200 transition-colors">
             {serverUrl ? <Wifi size={14} className="text-green-500" /> : <Wifi size={14} className="text-red-400" />}
-            <span className="hidden sm:inline">{serverUrl ? 'AI Online' : 'Connect AI'}</span>
+            <span className="hidden sm:inline">{serverUrl ? 'Online' : 'Connect'}</span>
           </button>
 
-          {/* PROFILE DROPDOWN */}
           <div className="relative" ref={menuRef}>
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="w-8 h-8 rounded-full bg-stone-200 overflow-hidden border border-stone-300 focus:ring-2 focus:ring-offset-1 focus:ring-stone-400">
               {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" alt="Profile" /> : <span className="flex items-center justify-center h-full text-xs font-bold">{profile?.full_name?.[0] || user?.email?.[0]?.toUpperCase()}</span>}
@@ -352,7 +343,6 @@ export default function StudioPage() {
       </header>
 
       {/* SETTINGS MODAL */}
-      {/* Fixed: Changed positioning to fit mobile screens (right-4 instead of right-20, max-w) */}
       {showSettings && (
         <div className="absolute top-16 right-4 md:right-20 z-[60] bg-white p-4 rounded-xl shadow-xl border border-stone-200 w-80 max-w-[90vw] animate-in fade-in slide-in-from-top-2">
           <h3 className="text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2"><Settings size={12} /> AI Backend Config</h3>
@@ -362,12 +352,52 @@ export default function StudioPage() {
       )}
 
       {/* === MAIN LAYOUT === */}
-      {/* Fixed: flex-col for mobile, flex-row for desktop. Added overflow-y-auto so mobile can scroll. */}
-      <main className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden relative z-0">
+      {/* 
+         Structure:
+         Mobile: Column. overflow-y-auto (Allows whole page vertical scroll).
+         Desktop: Row. overflow-hidden (Panels handle internal scrolling).
+      */}
+      <main className="flex-1 w-full flex flex-col lg:flex-row bg-stone-50 overflow-y-auto lg:overflow-hidden relative z-0">
 
-        {/* LEFT SIDEBAR: INPUTS */}
-        {/* Fixed: Wrapped AIPromptPanel to handle responsive width and order */}
-        <div className="order-2 lg:order-1 w-full lg:w-80 shrink-0 border-b lg:border-b-0 lg:border-r border-stone-200 bg-white">
+        {/* --- 1. CENTER STAGE (Canvas) --- */}
+        {/* 
+            Mobile: Order 1. mb-6 for spacing. 
+            Desktop: Order 2. Flex-1. h-full. 
+        */}
+        <div className="order-1 lg:order-2 flex-1 w-full lg:h-full relative flex items-center justify-center bg-stone-100 overflow-hidden min-h-[50vh] lg:min-h-0 touch-none shrink-0 mb-6 lg:mb-0">
+          
+          {/* Canvas View */}
+          <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${viewMode === 'canvas' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+            <Toolbar activeTool={activeTool} setActiveTool={setActiveTool} />
+            <div className="relative shadow-xl shadow-stone-300/50 border border-white bg-white">
+              <CanvasBoard
+                activeTool={activeTool}
+                brushSize={brushSize}
+                opacity={opacity}
+                importedImage={sketchSource === 'upload' ? uploadedSketchPreview : null}
+                onDrawEnd={(data) => setCanvasData(data)}
+              />
+            </div>
+          </div>
+
+          {/* Result View */}
+          <div className={`absolute inset-0 flex items-center justify-center bg-stone-50 transition-opacity duration-300 ${viewMode === 'result' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+            <ResultReveal
+              resultImage={resultImage}
+              palette={palette}
+              lookbookBase64={lookbookBase64}
+              onBack={() => setViewMode('canvas')}
+              isGenerating={isGenerating}
+            />
+          </div>
+        </div>
+
+        {/* --- 2. LEFT SIDEBAR (Prompt Inputs) --- */}
+        {/* 
+           Mobile: Order 2. w-full. h-auto (Let page scroll).
+           Desktop: Order 1. w-80. h-full. overflow-y-auto + no-scrollbar (Scrolls internally but hidden bar).
+        */}
+        <div className="order-2 lg:order-1 w-full lg:w-80 lg:shrink-0 lg:h-full lg:overflow-y-auto no-scrollbar border-t lg:border-t-0 lg:border-r border-stone-200 bg-white">
           <AIPromptPanel
             sketchSource={sketchSource}
             setSketchSource={setSketchSource}
@@ -385,40 +415,34 @@ export default function StudioPage() {
           />
         </div>
 
-        {/* CENTER STAGE */}
-        {/* Fixed: Added min-h for mobile so canvas doesn't collapse. Added touch-none for better drawing. order-1 ensures canvas is top on mobile. */}
-        <div className="order-1 lg:order-2 flex-1 relative flex items-center justify-center bg-stone-100 overflow-hidden min-h-[50vh] lg:min-h-0 touch-none">
-          {/* Canvas View */}
-          <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${viewMode === 'canvas' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-            <Toolbar activeTool={activeTool} setActiveTool={setActiveTool} />
-            <div className="relative shadow-xl shadow-stone-300/50 border border-white bg-white">
-              <CanvasBoard
-                activeTool={activeTool}
-                brushSize={brushSize}
-                opacity={opacity}
-                importedImage={sketchSource === 'upload' ? uploadedSketchPreview : null}
-                onDrawEnd={(data) => setCanvasData(data)}
-              />
-            </div>
-          </div>
-          {/* Result View */}
-          <div className={`absolute inset-0 flex items-center justify-center bg-stone-50 transition-opacity duration-300 ${viewMode === 'result' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
-            <ResultReveal
-              resultImage={resultImage}
-              palette={palette}
-              lookbookBase64={lookbookBase64}
-              onBack={() => setViewMode('canvas')}
-              isGenerating={isGenerating}
-            />
-          </div>
-        </div>
-
-        {/* RIGHT SIDEBAR: LAYERS (Visible only in Canvas Mode) */}
-        {/* Fixed: Responsive width (w-full on mobile). Order-3 places it at bottom of mobile stack. */}
+        {/* --- 3. RIGHT SIDEBAR (Layers) --- */}
+        {/* 
+            Desktop: Order 3. w-72. h-full. border-l.
+            Mobile: Hidden (Handled by modal).
+        */}
         {viewMode === 'canvas' && (
-          <div className="order-3 w-full lg:w-72 border-t lg:border-t-0 lg:border-l border-stone-200 bg-white shrink-0">
+          <div className="hidden lg:block lg:order-3 w-72 lg:h-full lg:shrink-0 border-l border-stone-200 bg-white">
             <LayersPanel />
           </div>
+        )}
+
+        {/* MOBILE/TABLET VERSION: Dropdown/Drawer */}
+        {showMobileLayers && (
+            <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end sm:justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
+                <div className="bg-white w-full sm:w-80 sm:mx-auto h-[70vh] sm:h-[80vh] sm:rounded-xl rounded-t-xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-10">
+                    <div className="p-3 border-b border-stone-100 flex items-center justify-between bg-stone-50">
+                        <span className="font-bold text-sm text-stone-700 flex items-center gap-2">
+                            <Layers size={16} /> Layers & Options
+                        </span>
+                        <button onClick={() => setShowMobileLayers(false)} className="p-1 hover:bg-stone-200 rounded-full">
+                            <X size={20} />
+                        </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto">
+                        <LayersPanel />
+                    </div>
+                </div>
+            </div>
         )}
 
       </main>
